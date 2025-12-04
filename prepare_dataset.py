@@ -2,162 +2,169 @@ import os
 import cv2
 import numpy as np
 import shutil
-import random
-from sklearn.model_selection import train_test_split
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from ultralytics import YOLO
 
-# ============================================
-# CONFIG
-# ============================================
-RAW_DATASET_DIR = "dataset_raw"            # contains 3 folders: free_flow / moderate / congested
-CLEAN_DATASET_DIR = "dataset_cleaned"      # cleaned & resized images
-SPLIT_DATASET_DIR = "dataset_split"        # train/val/test
+RAW_DIR = "dataset_raw"
+CLEAN_DIR = "dataset_cleaned"
+SPLIT_DIR = "dataset_split"
+IMG_SIZE = 640
+OUTPUT_CSV = "dataset_features.csv"
 
-IMG_SIZE = 224   # resize to 224×224
+os.makedirs(CLEAN_DIR, exist_ok=True)
+os.makedirs(SPLIT_DIR, exist_ok=True)
 
-# ensure folders exist
-os.makedirs(CLEAN_DATASET_DIR, exist_ok=True)
-os.makedirs(SPLIT_DATASET_DIR, exist_ok=True)
+# ============================================================
+# LOAD OR DOWNLOAD MODEL
+# ============================================================
+def load_model():
+    if not os.path.exists("yolov8s.pt"):
+        print("Downloading YOLOv8s model...")
+        model = YOLO("yolov8s.pt")
+    else:
+        model = YOLO("yolov8s.pt")
+    print("YOLOv8s loaded.")
+    return model
 
+model = load_model()
 
-# ============================================
+# ============================================================
 # FEATURE EXTRACTION
-# ============================================
+# ============================================================
+def extract_features(img):
+    h, w, _ = img.shape
+    area = h * w
 
-def extract_features(image):
-    """
-    Extract features from image:
-    - vehicle_count: number of large detected objects (approx. number of vehicles)
-    - density_ratio: ratio of white pixels (proxy for traffic density)
-    - motion_intensity: optical flow magnitude (not applicable for single images → set to 0)
-    """
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Run detection
+    results = model(img, verbose=False)[0]
 
-    # 1) Background subtraction → detect foreground objects
-    backSub = cv2.createBackgroundSubtractorMOG2(varThreshold=50)
-    fgMask = backSub.apply(gray)
-    _, thresh = cv2.threshold(fgMask, 127, 255, cv2.THRESH_BINARY)
+    # Detect specific vehicle classes from COCO dataset
+    vehicle_classes = {
+        2: "car",
+        3: "motorcycle",
+        5: "bus",
+        7: "truck"
+    }
 
-    # 2) Find contours to estimate number of vehicles
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    vehicle_cnt = sum(1 for c in contours if cv2.contourArea(c) > 300)   # count only large contours
+    bbox_areas = []
+    counts = {"car":0, "motorcycle":0, "bus":0, "truck":0}
 
-    # 3) Density ratio = percentage of white pixels
-    density_ratio = np.sum(thresh > 0) / (thresh.shape[0] * thresh.shape[1])
+    for box in results.boxes:
+        cls = int(box.cls)
+        if cls in vehicle_classes:
+            label = vehicle_classes[cls]
+            counts[label] += 1
 
-    # 4) Optical flow (not usable for a single image → set to 0)
-    motion_intensity = 0.0
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            bbox_area = (x2 - x1) * (y2 - y1)
+            bbox_areas.append(bbox_area)
 
-    return vehicle_cnt, density_ratio, motion_intensity
+    total_vehicles = sum(counts.values())
+    bbox_area_ratio = sum(bbox_areas) / area if bbox_areas else 0
+    mean_bbox_area = np.mean(bbox_areas) if bbox_areas else 0
+    max_bbox_area = max(bbox_areas) if bbox_areas else 0
 
+    # Additional features
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    brightness = float(np.mean(gray))
+    sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
-# ============================================
-# CLEAN + RESIZE + FEATURE EXTRACTION
-# ============================================
+    edges = cv2.Canny(gray, 80, 160)
+    edge_density = float(np.sum(edges > 0) / area)
 
+    return {
+        "car_count": counts["car"],
+        "motorcycle_count": counts["motorcycle"],
+        "bus_count": counts["bus"],
+        "truck_count": counts["truck"],
+        "total_vehicles": total_vehicles,
+        "bbox_area_ratio": bbox_area_ratio,
+        "mean_bbox_area": mean_bbox_area,
+        "max_bbox_area": max_bbox_area,
+        "brightness": brightness,
+        "sharpness": sharpness,
+        "edge_density": edge_density,
+    }
+
+# ============================================================
+# AUTO LABELING RULE (BASED ON REAL DETECTION)
+# ============================================================
+def auto_label(f):
+    total = f["total_vehicles"]
+    dens = f["bbox_area_ratio"]
+
+    # Adjust thresholds depending on camera perspective
+    if total <= 5 and dens < 0.05:
+        return "free_flow"
+    elif total <= 15 and dens < 0.15:
+        return "moderate"
+    else:
+        return "congested"
+
+# ============================================================
+# PROCESS DATASET
+# ============================================================
 def process_dataset():
-    rows = []   # feature information → CSV
+    rows = []
+    file_list = [f for f in os.listdir(RAW_DIR) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
 
-    for label in ["free_flow", "moderate", "congested"]:
-        input_dir = os.path.join(RAW_DATASET_DIR, label)
-        output_dir = os.path.join(CLEAN_DATASET_DIR, label)
+    print(f"Found {len(file_list)} raw images.")
 
-        os.makedirs(output_dir, exist_ok=True)
+    for filename in file_list:
+        path = os.path.join(RAW_DIR, filename)
+        img = cv2.imread(path)
 
-        for filename in os.listdir(input_dir):
-            if not filename.lower().endswith(('.jpg', '.png', '.jpeg')):
-                continue
+        if img is None:
+            print("Warning: cannot read image:", path)
+            continue
 
-            img_path = os.path.join(input_dir, filename)
-            img = cv2.imread(img_path)
+        # Resize for consistent input
+        img_resized = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
 
-            if img is None:
-                print("Failed to read image:", img_path)
-                continue
+        # Save cleaned image
+        clean_path = os.path.join(CLEAN_DIR, filename)
+        cv2.imwrite(clean_path, img_resized)
 
-            # Simple image cleaning: mild Gaussian blur
-            img = cv2.GaussianBlur(img, (3, 3), 0)
+        # Extract features
+        f = extract_features(img_resized)
+        f["filepath"] = clean_path
+        f["label"] = auto_label(f)
+        rows.append(f)
 
-            # Resize
-            img_resized = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
-
-            # Save cleaned image
-            output_path = os.path.join(output_dir, filename)
-            cv2.imwrite(output_path, img_resized)
-
-            # Extract features
-            vehicle_cnt, density_ratio, motion_intensity = extract_features(img_resized)
-
-            rows.append({
-                "filepath": output_path,
-                "vehicle_count": vehicle_cnt,
-                "density_ratio": density_ratio,
-                "motion_intensity": motion_intensity,
-                "label": label,
-            })
-
-    # Save dataset for ML training
     df = pd.DataFrame(rows)
-    df.to_csv("dataset_features.csv", index=False)
-    print("Created dataset_features.csv with", len(df), "samples.")
+    df.to_csv(OUTPUT_CSV, index=False)
+    print(f"[DONE] Created {OUTPUT_CSV} with {len(df)} samples.")
+    return df
 
+# ============================================================
+# SPLIT DATASET
+# ============================================================
+def split_dataset(df):
+    train_df, temp_df = train_test_split(df, test_size=0.30, random_state=42, stratify=df["label"])
+    val_df, test_df = train_test_split(temp_df, test_size=1/3, random_state=42, stratify=temp_df["label"])
 
-# ============================================
-# SPLIT DATASET 70/20/10
-# ============================================
+    train_df.to_csv(os.path.join(SPLIT_DIR, "train.csv"), index=False)
+    val_df.to_csv(os.path.join(SPLIT_DIR, "val.csv"), index=False)
+    test_df.to_csv(os.path.join(SPLIT_DIR, "test.csv"), index=False)
 
-def split_dataset():
-    df = pd.read_csv("dataset_features.csv")
-
-    # Train 70%, temp 30%
-    train_df, temp_df = train_test_split(
-        df, test_size=0.30, random_state=42, stratify=df["label"]
-    )
-
-    # From the remaining 30% → val 20% and test 10%
-    val_df, test_df = train_test_split(
-        temp_df, test_size=1/3, random_state=42, stratify=temp_df["label"]
-    )
-
-    print("Train:", len(train_df))
-    print("Val:", len(val_df))
-    print("Test:", len(test_df))
-
-    # Save CSV
-    train_df.to_csv(os.path.join(SPLIT_DATASET_DIR, "train.csv"), index=False)
-    val_df.to_csv(os.path.join(SPLIT_DATASET_DIR, "val.csv"), index=False)
-    test_df.to_csv(os.path.join(SPLIT_DATASET_DIR, "test.csv"), index=False)
-
-    # Copy images according to split
-    def copy_images(df, split_name):
-        out_dir = os.path.join(SPLIT_DATASET_DIR, split_name)
-        os.makedirs(out_dir, exist_ok=True)
-
-        for _, row in df.iterrows():
-            label = row["label"]
-            src = row["filepath"]
-            dst_dir = os.path.join(out_dir, label)
+    def copy_split(split_df, split_name):
+        for _, row in split_df.iterrows():
+            lbl = row["label"]
+            dst_dir = os.path.join(SPLIT_DIR, split_name, lbl)
             os.makedirs(dst_dir, exist_ok=True)
+            shutil.copy(row["filepath"], dst_dir)
 
-            dst = os.path.join(dst_dir, os.path.basename(src))
-            shutil.copy(src, dst)
+    copy_split(train_df, "train")
+    copy_split(val_df, "val")
+    copy_split(test_df, "test")
 
-    copy_images(train_df, "train")
-    copy_images(val_df, "val")
-    copy_images(test_df, "test")
+    print("[DONE] Dataset split into train/val/test.")
 
-    print("Dataset split into train/val/test.")
-
-
-# ============================================
+# ============================================================
 # MAIN
-# ============================================
-
+# ============================================================
 if __name__ == "__main__":
-    print("=== START CLEANING + FEATURE EXTRACTION ===")
-    process_dataset()
-
-    print("=== START DATASET SPLITTING ===")
-    split_dataset()
-
-    print("=== DONE ===")
+    df = process_dataset()
+    split_dataset(df)
+    print("All completed.")

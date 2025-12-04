@@ -19,7 +19,7 @@ function parseArgs() {
 const args = parseArgs();
 const URL = args.url;
 const CAMERA_ID = args.cam_id;
-const SAVE_DIR = path.resolve(args.save_dir || path.join(__dirname, "dataset_raw/screenshots"));
+const SAVE_DIR = path.resolve(args.save_dir || path.join(__dirname, "dataset_raw"));
 const INTERVAL_MS = Number(args.interval_ms || 5 * 60 * 1000);
 const NAV_TIMEOUT = Number(args.nav_timeout || 45000);
 const MAX_RETRY = Number(args.max_retry || 3);
