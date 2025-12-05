@@ -1,24 +1,31 @@
-FROM python:3.10-slim
-WORKDIR /app
+FROM python:3.9-slim
+
+# Install system libs for OpenCV
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
-    build-essential \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
-COPY . /app
-RUN pip install --upgrade pip
-RUN pip install \
-    ultralytics==8.1.0 \
-    opencv-python==4.9.0.80 \
-    flask==3.0.2 \
-    numpy==1.26.4 \
-    pandas==2.2.2 \
-    scikit-learn==1.4.1 \
-    matplotlib==3.8.2 \
-    joblib==1.3.2
-RUN mkdir -p static/uploads
+
+# Upgrade pip
+RUN pip install --upgrade pip setuptools wheel
+
+WORKDIR /app
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install PyTorch CPU explicitly
+RUN pip install --no-cache-dir torch==2.1.2+cpu torchvision==0.16.2+cpu torchaudio==2.1.2+cpu \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Install all remaining packages
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
 EXPOSE 5000
-CMD ["python", "app.py"]
+
+CMD ["python", "demo_flask.py"]

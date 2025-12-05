@@ -4,11 +4,10 @@ This project provides tools for:
 
 1. **Capturing traffic camera frames** from public HCMC traffic streams  
 2. **Cleaning & resizing images**
-3. **Detecting vehicles using YOLOv8s**
-4. **Extracting features**
-5. **Auto-labeling images into free_flow / moderate / congested**
-6. **Splitting data into train/val/test**
-7. **Training a decision tree model**
+3. **Extracting features**
+4. **Labeling images**
+5. **Splitting data into train/val/test**
+6. **Training a decision tree model**
 
 ---
 
@@ -21,11 +20,8 @@ Install required system libraries:
 sudo apt install -y libnss3 libasound2t64
 ```
 
-### Node.js
-Tested on Node v18.13.0
-
-### Python
-Tested on Python v3.9.2
+### Python, Node.js
+Tested on Python v3.9.2, Node v18.13.0
 
 ### Python Dependencies
 ```bash
@@ -45,9 +41,9 @@ project/
 ├── dataset_cleaned/         # Cleaned + resized images
 ├── dataset_split/           # train/val/test output folders
 │
-├── prepare_dataset.py       # Cleaning, resizing, YOLO detection, feature extraction, auto labeling, splitting
+├── prepare_dataset.py       # Cleaning, resizing, detection, feature extraction, auto labeling, splitting
 ├── train_model.py           # Train decision tree model
-├── demo_predict.py          # Single-image prediction using YOLO + ML
+├── demo_predict.py          # Single-image prediction
 ├── draw_tree.py             # Export decision tree visualization
 │
 ├── app.py                   # Flask + Tailwind demo web interface
@@ -68,7 +64,7 @@ project/
 ## 🎥 3. Capturing Camera Streams
 
 Use the Node script **capture_cam.js** to capture images/frames from public traffic camera streams in Ho Chi Minh City.
-
+You may run multiple camera capture processes in parallel.
 Each command specifies:
 - `--cam_id` → ID used for saving or naming files
 - `--url` → the full camera page containing the embedded HLS stream (m3u8)
@@ -99,16 +95,15 @@ node capture_cam.js --cam_id cam11 \
 Run:
 
 ```bash
-python prepare_dataset.py
+python3 prepare_dataset.py --reset --force
 ```
 
 This performs:
 
 - Cleaning (Gaussian blur)
 - Resizing to 224×224
-- YOLOv8s vehicle detection
 - Feature extraction
-- Auto labeling (free_flow/moderate/congested)
+- Labeling (free_flow/moderate/congested)
 - train/val/test split (70/20/10)
 
 Outputs stored in:
@@ -129,7 +124,7 @@ dataset_features.csv
 Run:
 
 ```bash
-python train_model.py
+python3 train_model.py
 ```
 
 Saves model to:
@@ -145,7 +140,7 @@ model.pkl
 Run:
 
 ```bash
-python app.py
+python3 app.py
 ```
 
 Open browser:
@@ -158,6 +153,7 @@ http://127.0.0.1:5000/
 
 ## 📝 Notes
 
-- Some traffic camera URLs rotate or expire; refresh links if capture fails.
-- Ensure WSL has video dependencies installed; Chromium may require additional codecs depending on stream type.
-- You may run multiple camera capture processes in parallel.
+- Conduct data collection and capture at least 2,000 samples (with supporting evidence).
+- Then proceed with labeling (use LabelImg to crop and label image data), and perform data preprocessing and feature extraction for other types of data.
+- The first evaluation session includes: the dataset, data preprocessing and feature extraction, train/validation/test split, running one machine learning model (Decision Tree), and reporting the accuracy metrics: Recall, F1, and Precision.
+- Report file: must follow a master's thesis structure, include all required sections, with 30–40 pages of main content.
