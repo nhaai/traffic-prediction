@@ -17,9 +17,9 @@ IMG_SIZE = 640
 os.makedirs(CLEAN_DIR, exist_ok=True)
 os.makedirs(SPLIT_DIR, exist_ok=True)
 
-# ============================================================
+# =========================================================
 # CLI ARGUMENTS
-# ============================================================
+# =========================================================
 parser = argparse.ArgumentParser(description="Dataset processor")
 parser.add_argument(
     "--reset",
@@ -33,9 +33,9 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# ============================================================
+# =========================================================
 # RESET DATASET
-# ============================================================
+# =========================================================
 def reset_dataset(auto_confirm=False):
     print("WARNING: You are about to delete all processed datasets:")
     print("- dataset_cleaned/")
@@ -75,9 +75,9 @@ if args.reset:
         print("Exiting due to cancelled reset.")
         exit(1)
 
-# ============================================================
+# =========================================================
 # LOAD MODEL
-# ============================================================
+# =========================================================
 def load_model():
     import torch
     from packaging import version
@@ -86,12 +86,9 @@ def load_model():
 
     # Auto download if missing
     if not os.path.exists(weights_path):
-        print("Downloading YOLOv8s model...")
         YOLO("yolov8s.pt")
-        print("Download completed.")
 
     torch_version = torch.__version__
-    print(f"Detected PyTorch version: {torch_version}")
 
     # For PyTorch >= 2.6, must use safe_globals workaround
     if version.parse(torch_version) >= version.parse("2.6.0"):
@@ -108,9 +105,7 @@ def load_model():
     # Try loading the model normally
     try:
         yolo_model = YOLO(weights_path)
-        print("YOLO model loaded successfully.")
         return yolo_model
-
     except Exception as e:
         print("Normal load failed:", type(e).__name__, str(e))
         print("Attempting fallback torch.load() with weights_only=False...")
@@ -125,58 +120,80 @@ def load_model():
             model = DetectionModel()
             model.load_state_dict(ckpt["model"].state_dict())
 
-            print("YOLO model loaded via fallback path.")
             return YOLO(model=model)
         except Exception as e2:
             print("Fallback load also failed:", type(e2).__name__, str(e2))
             print("Please check your PyTorch / Ultralytics installation.")
             raise e2
 
-model = load_model()
+yolo = load_model()
 
-# ============================================================
+# =========================================================
 # EXTRACT FEATURES
-# ============================================================
+# =========================================================
+def is_night(gray):
+    brightness = np.mean(gray)
+    return brightness < 90
+
+def apply_night_adjustments(feats, gray):
+    if is_night(gray):
+        feats["car_count"] *= 0.6
+        feats["motorcycle_count"] *= 0.5
+        feats["bus_count"] *= 0.8
+        feats["truck_count"] *= 0.8
+        feats["total_vehicles"] *= 0.6
+        feats["bbox_area_ratio"] *= 1.4
+        feats["mean_bbox_area"] *= 1.2
+        feats["max_bbox_area"] *= 1.1
+        feats["edge_density"] *= 0.7
+        feats["sharpness"] *= 1.1
+        feats["is_night"] = 1
+    else:
+        feats["is_night"] = 0
+
 def extract_features(img):
     h, w, _ = img.shape
     area = h * w
 
     # Run detection
-    results = model(img, verbose=False)[0]
+    results = yolo(img, verbose=False)[0]
 
     # Detect specific vehicle classes from COCO dataset
     vehicle_classes = {2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+    counts = {v: 0 for v in vehicle_classes.values()}
     bbox_areas = []
-    counts = {k: 0 for k in vehicle_classes.values()}
 
     for box in results.boxes:
         cls = int(box.cls)
-        if cls in vehicle_classes:
-            lbl = vehicle_classes[cls]
-            counts[lbl] += 1
+        conf = float(box.conf)
+        if cls in vehicle_classes and conf >= 0.15: # lower conf for night
+            label = vehicle_classes[cls]
+            counts[label] += 1
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             bbox_areas.append((x2 - x1) * (y2 - y1))
 
     total_vehicles = sum(counts.values())
-    bbox_area_ratio = sum(bbox_areas) / area if bbox_areas else 0
-
-    return {
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    feats = {
         "car_count": counts["car"],
         "motorcycle_count": counts["motorcycle"],
         "bus_count": counts["bus"],
         "truck_count": counts["truck"],
         "total_vehicles": total_vehicles,
-        "bbox_area_ratio": bbox_area_ratio,
+        "bbox_area_ratio": sum(bbox_areas) / area if bbox_areas else 0,
         "mean_bbox_area": float(np.mean(bbox_areas)) if bbox_areas else 0,
         "max_bbox_area": max(bbox_areas) if bbox_areas else 0,
-        "brightness": float(np.mean(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))),
-        "sharpness": float(cv2.Laplacian(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()),
-        "edge_density": float(np.sum(cv2.Canny(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 80, 160) > 0) / area),
+        "brightness": float(np.mean(gray)),
+        "sharpness": float(cv2.Laplacian(gray, cv2.CV_64F).var()),
+        "edge_density": float(np.sum(cv2.Canny(gray, 80, 160) > 0) / area),
     }
+    apply_night_adjustments(feats, gray)
 
-# ============================================================
+    return feats
+
+# =========================================================
 # LABELING
-# ============================================================
+# =========================================================
 def auto_label(f):
     total = f["total_vehicles"]
     dens = f["bbox_area_ratio"]
@@ -189,9 +206,9 @@ def auto_label(f):
     else:
         return "congested"
 
-# ============================================================
+# =========================================================
 # PROCESS DATASET
-# ============================================================
+# =========================================================
 def process_dataset():
     # Load old CSV
     if os.path.exists(OUTPUT_CSV):
@@ -252,9 +269,9 @@ def process_dataset():
     print(f"[DONE] Dataset now contains {len(final_df)} samples.")
     return final_df
 
-# ============================================================
+# =========================================================
 # SPLIT DATASET
-# ============================================================
+# =========================================================
 def split_dataset(df):
     # Clean old split folders
     if os.path.exists(SPLIT_DIR):
@@ -283,9 +300,9 @@ def split_dataset(df):
 
     print("[DONE] Rebuilt train/val/test split.")
 
-# ============================================================
+# =========================================================
 # MAIN
-# ============================================================
+# =========================================================
 if __name__ == "__main__":
     processed = process_dataset()
     split_dataset(processed)

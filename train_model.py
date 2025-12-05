@@ -31,6 +31,7 @@ feature_cols = [
     "brightness",
     "sharpness",
     "edge_density",
+    "is_night",
 ]
 
 X = df[feature_cols].values

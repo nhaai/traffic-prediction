@@ -36,7 +36,7 @@ def predict_image(path):
     img = cv2.imread(path)
     img_resized = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
 
-    feats = extract_features(img_resized)
+    feats, mode = extract_features(img_resized)
 
     X = np.array([feats[col] for col in feature_cols]).reshape(1, -1)
     X_scaled = scaler.transform(X)
@@ -44,7 +44,7 @@ def predict_image(path):
     pred = model.predict(X_scaled)
     label = label_encoder.inverse_transform(pred)[0]
 
-    return label, feats
+    return label, feats, mode
 
 # ===================================================
 # ROUTES
@@ -64,13 +64,14 @@ def index():
             save_path = os.path.join(UPLOAD_DIR, filename)
             file.save(save_path)
 
-            label, feats = predict_image(save_path)
+            label, feats, mode = predict_image(save_path)
 
             results.append({
                 "filename": filename,
                 "path": save_path,
                 "label": label,
-                "features": feats
+                "features": feats,
+                "mode": mode
             })
 
     return render_template("index.html", results=results)
