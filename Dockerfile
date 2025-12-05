@@ -1,31 +1,27 @@
 FROM python:3.9-slim
 
-# Install system libs for OpenCV
-RUN apt-get update && apt-get install -y \
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --upgrade pip setuptools wheel
-
+# Create work directory
 WORKDIR /app
 
 # Copy requirements
 COPY requirements.txt .
 
-# Install PyTorch CPU explicitly
-RUN pip install --no-cache-dir torch==2.1.2+cpu torchvision==0.16.2+cpu torchaudio==2.1.2+cpu \
-    --extra-index-url https://download.pytorch.org/whl/cpu
+# Install Python dependencies
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
-# Install all remaining packages
-RUN pip install --no-cache-dir -r requirements.txt
-
+# Copy project code
 COPY . .
 
-EXPOSE 5000
-
-CMD ["python", "demo_flask.py"]
+# Default command (can be changed)
+CMD ["python3", "prepare_dataset.py"]

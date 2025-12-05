@@ -25,6 +25,8 @@ Tested on Python v3.9.2, Node v18.13.0
 
 ### Python Dependencies
 ```bash
+python3.9 -m venv .venv39
+source .venv39/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -48,8 +50,7 @@ project/
 │
 ├── app.py                   # Flask + Tailwind demo web interface
 ├── static/
-│   ├── uploads/             # Uploaded images
-│   └── decision_tree.png    # Generated ML tree graph
+│   └── uploads/             # Uploaded images
 │
 ├── templates/
 │   └── index.html           # Tailwind UI
@@ -138,6 +139,18 @@ model.pkl
 ## 🌐 5. Demo
 
 Run:
+
+```bash
+python3 app.py
+```
+
+Open browser:
+
+```
+http://127.0.0.1:5000/
+```
+
+Or:
 
 ```bash
 python3 demo_predict.py static/test_congested.png

@@ -1,3 +1,5 @@
 /node_modules
 /.idea
+/.venv
+/.venv39
 /dataset_features.csv
