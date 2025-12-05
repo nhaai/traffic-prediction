@@ -140,13 +140,9 @@ model.pkl
 Run:
 
 ```bash
-python3 app.py
-```
-
-Open browser:
-
-```
-http://127.0.0.1:5000/
+python3 demo_predict.py static/test_congested.png
+python3 demo_predict.py static/test_free_flow.png
+python3 demo_predict.py static/test_moderate.png
 ```
 
 ---

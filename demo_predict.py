@@ -1,3 +1,4 @@
+import sys
 import cv2
 import numpy as np
 import joblib
@@ -103,5 +104,8 @@ def predict(img_path):
 # MAIN EXECUTION
 # =========================================================
 if __name__ == "__main__":
-    path = input("Enter image path: ").strip()
+    if len(sys.argv) > 1:
+        path = sys.argv[1]
+    else:
+        path = input("Enter image path: ").strip()
     predict(path)
