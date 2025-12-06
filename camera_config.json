@@ -1,0 +1,151 @@
+{
+  "cam07": {
+    "zones": {
+      "top": [
+        0.0,
+        0.35
+      ],
+      "mid": [
+        0.35,
+        0.70
+      ],
+      "bottom": [
+        0.70,
+        1.0
+      ]
+    },
+    "rules": {
+      "congested": {
+        "total_min": 18,
+        "bbox_area_ratio_min": 0.16
+      },
+      "moderate": {
+        "total_min": 10,
+        "total_max": 18
+      },
+      "free": {
+        "total_max": 10
+      }
+    }
+  },
+  "cam08": {
+    "zones": {
+      "top": [
+        0.0,
+        0.33
+      ],
+      "mid": [
+        0.33,
+        0.66
+      ],
+      "bottom": [
+        0.66,
+        1.0
+      ]
+    },
+    "rules": {
+      "congested": {
+        "total_min": 20,
+        "bbox_area_ratio_min": 0.18,
+        "zone_top_min": 6
+      },
+      "moderate": {
+        "total_min": 12,
+        "total_max": 20
+      },
+      "free": {
+        "total_max": 12
+      }
+    }
+  },
+  "cam09": {
+    "zones": {
+      "top": [
+        0.0,
+        0.40
+      ],
+      "mid": [
+        0.40,
+        0.75
+      ],
+      "bottom": [
+        0.75,
+        1.0
+      ]
+    },
+    "rules": {
+      "congested": {
+        "total_min": 18,
+        "cluster_density_min": 0.08,
+        "motorcycle_min": 6
+      },
+      "moderate": {
+        "total_min": 10,
+        "total_max": 18
+      },
+      "free": {
+        "total_max": 10
+      }
+    }
+  },
+  "cam10": {
+    "zones": {
+      "top": [
+        0.0,
+        0.35
+      ],
+      "mid": [
+        0.35,
+        0.75
+      ],
+      "bottom": [
+        0.75,
+        1.0
+      ]
+    },
+    "rules": {
+      "congested": {
+        "total_min": 22,
+        "bottom_motor_min": 3,
+        "mid_car_min": 2
+      },
+      "moderate": {
+        "total_min": 14,
+        "total_max": 24
+      },
+      "free": {
+        "total_max": 14
+      }
+    }
+  },
+  "cam11": {
+    "zones": {
+      "top": [
+        0.0,
+        0.4
+      ],
+      "mid": [
+        0.4,
+        0.75
+      ],
+      "bottom": [
+        0.75,
+        1.0
+      ]
+    },
+    "rules": {
+      "congested": {
+        "total_min": 26,
+        "bbox_area_ratio_min": 0.23,
+        "zone_bottom_min": 3
+      },
+      "moderate": {
+        "total_min": 18,
+        "total_max": 26
+      },
+      "free": {
+        "total_max": 18
+      }
+    }
+  }
+}

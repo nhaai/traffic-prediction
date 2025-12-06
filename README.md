@@ -45,9 +45,9 @@ project/
 │
 ├── prepare_dataset.py       # Cleaning, resizing, detection, feature extraction, auto labeling, splitting
 ├── train_model.py           # Train decision tree model
-├── demo_predict.py          # Single-image prediction
 ├── draw_tree.py             # Export decision tree visualization
 │
+├── console.py               # Run traffic prediction from the terminal
 ├── app.py                   # Flask + Tailwind demo web interface
 ├── static/
 │   └── uploads/             # Uploaded images
@@ -96,7 +96,7 @@ node capture_cam.js --cam_id cam11 \
 Run:
 
 ```bash
-python3 prepare_dataset.py --reset --force
+python3 prepare_dataset.py --reset
 ```
 
 This performs:
@@ -153,10 +153,34 @@ http://127.0.0.1:5000/
 Or:
 
 ```bash
-python3 demo_predict.py static/test_congested.png
-python3 demo_predict.py static/test_free_flow.png
-python3 demo_predict.py static/test_moderate.png
+python3 console.py dataset_cleaned/cam11_20251206_132014.png
 ```
+
+---
+
+## 📊 6. Feature Set Used
+
+| Feature           | Role                                                                     |
+|-------------------|--------------------------------------------------------------------------|
+| car               | Number of cars — strong density indicator                                |
+| motorcycle        | Dominant vehicle type in Vietnam → highly impactful                      |
+| bus               | Helps detect heavy traffic flow                                          |
+| truck             | Large vehicles often contribute to slowdowns                             |
+| total             | Overall vehicle count                                                    |
+| bbox_area_ratio   | Percentage of image area occupied by vehicles — strong congestion signal |
+| mean_bbox_area    | Larger bounding boxes → vehicles closer to camera → possible bottleneck  |
+| max_bbox_area     | Detects very large/close vehicles blocking the camera view               |
+| brightness        | Related to day/night conditions                                          |
+| sharpness         | Indicates blur/noise in the image affecting detection quality            |
+| edge_density      | Texture density — correlates with object/vehicle density                 |
+| zone_top          | Vehicle count in the far region of the camera view                       |
+| zone_mid          | Vehicle count in the mid-region — affects flow state                     |
+| zone_bottom       | Vehicles closest to the camera — strong congestion indicator             |
+| bottom_motor      | Motorcycles in the bottom zone — early sign of traffic jam               |
+| mid_car           | Cars in the mid-zone — relates to slowing traffic                        |
+| cluster_density   | Bounding-box density — captures clustering of vehicles                   |
+| is_night          | Night flag used for adaptive feature adjustment                          |
+| is_rain           | Rain flag (edge + brightness) impacting visibility and flow              |
 
 ---
 
