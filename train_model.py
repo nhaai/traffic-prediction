@@ -47,7 +47,8 @@ expected_feature_cols = [
     "cluster_density",
 
     "is_night",
-    "is_rain"
+    "is_rain",
+    "crowd_density"
 ]
 feature_cols = [c for c in expected_feature_cols if c in df.columns]
 

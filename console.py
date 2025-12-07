@@ -45,7 +45,6 @@ def predict(path):
     features.CURRENT_FILENAME = path
     feats = extract_features(img, cam_id)
 
-    # Build input vector in correct order
     try:
         X = np.array([feats[col] for col in feature_cols]).reshape(1, -1)
     except KeyError as e:

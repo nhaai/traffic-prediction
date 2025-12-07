@@ -43,6 +43,11 @@ project/
 ├── dataset_cleaned/         # Cleaned + resized images
 ├── dataset_split/           # train/val/test output folders
 │
+├── crowd_counter/
+│   ├── csrnet.py            # CSRNet wrapper for crowd_density feature
+│   └── model.pth            # Pretrained CSRNet weights (ShanghaiTech Part A)
+│                            # https://drive.google.com/file/d/1Z-atzS5Y2pOd-nEWqZRVBDMYJDreGWHH/view
+│
 ├── prepare_dataset.py       # Cleaning, resizing, detection, feature extraction, auto labeling, splitting
 ├── train_model.py           # Train decision tree model
 ├── draw_tree.py             # Export decision tree visualization
@@ -96,7 +101,7 @@ node capture_cam.js --cam_id cam11 \
 Run:
 
 ```bash
-python3 prepare_dataset.py --reset
+python3 prepare_dataset.py --reset --all
 ```
 
 This performs:
@@ -117,6 +122,11 @@ dataset_split/
 └── test/
 dataset_features.csv
 ```
+
+During feature extraction, if `crowd_counter/model.pth` is available,
+the script also computes a `crowd_density` feature using CSRNet
+(crowd counting). If the model is missing, `crowd_density` is set to 0
+and the rest of the pipeline still works.
 
 ---
 
@@ -181,6 +191,7 @@ python3 console.py static/uploads/congested/cam07_20251203_173405.png
 | cluster_density   | Bounding-box density — captures clustering of vehicles                   |
 | is_night          | Night flag used for adaptive feature adjustment                          |
 | is_rain           | Rain flag (edge + brightness) impacting visibility and flow              |
+| crowd_density     | CSRNet-based density estimate, robust signal for free/moderate/congested |
 
 ---
 

@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import json
 from ultralytics import YOLO
+from crowd_counter.csrnet import estimate_density
 
 # =======================================
 # LOAD CAMERA CONFIG
@@ -272,6 +273,13 @@ def extract_features(img, cam_id):
     # zone-based counts
     zone_counts = compute_zones(h, box_list, cam_id)
 
+    # crowd counting density
+    try:
+        crowd_density = estimate_density(img)
+        crowd_density = float(crowd_density)
+    except (OSError, RuntimeError) as e:
+        crowd_density = 0.0
+
     feats = {
         "car": counts["car"],
         "motorcycle": counts["motorcycle"],
@@ -293,6 +301,7 @@ def extract_features(img, cam_id):
         "bottom_motor": bottom_motor,
         "mid_car": mid_car,
         "cluster_density": bbox_area_ratio,
+        "crowd_density": crowd_density,
 
         "is_night": int(night),
         "is_rain": int(rain)

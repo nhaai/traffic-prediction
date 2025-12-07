@@ -39,11 +39,11 @@ def predict(path):
     if cam_id is None:
         raise ValueError("Filename must begin with camXX_ ... to detect correct camera rules")
 
-    # Extract full feature set via official pipeline
+    # extract full feature set via official pipeline
     features.CURRENT_FILENAME = path
     feats = extract_features(img, cam_id)
 
-    # Prepare X in correct order
+    # prepare X in correct order
     X = np.array([feats[col] for col in feature_cols]).reshape(1, -1)
     X_scaled = scaler.transform(X)
 
