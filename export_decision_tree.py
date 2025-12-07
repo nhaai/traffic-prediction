@@ -18,7 +18,7 @@ os.makedirs(os.path.dirname(OUT_PDF), exist_ok=True)
 
 def main():
     if not os.path.exists(MODEL_PATH):
-        print(f"[ERROR] Model file not found: {MODEL_PATH}", file=sys.stderr)
+        print(f"[ERROR] Model not found: {MODEL_PATH}", file=sys.stderr)
         return
 
     data = joblib.load(MODEL_PATH)
@@ -34,8 +34,6 @@ def main():
         raise TypeError("Loaded model is not a DecisionTreeClassifier.")
 
     classes = list(label_encoder.classes_)
-
-    print("[INFO] Loaded model and metadata.")
     print(f"[INFO] Tree nodes: {model.tree_.node_count}, max_depth: {model.tree_.max_depth}")
 
     # export text rules
@@ -51,7 +49,7 @@ def main():
 
         print("[OK] Text rules saved.")
 
-    # try Graphviz first (best quality vector)
+    # try Graphviz first
     try:
         import graphviz
         use_graphviz = True
@@ -66,8 +64,6 @@ def main():
 
     if use_graphviz and (EXPORT_PDF or EXPORT_PNG):
         try:
-            print("[INFO] Graphviz available. Exporting tree...")
-
             dot_data = export_graphviz(
                 model,
                 out_file=None,
@@ -77,18 +73,15 @@ def main():
                 rounded=True,
                 special_characters=False
             )
-
             graph = graphviz.Source(dot_data)
 
             if EXPORT_PDF:
                 graph.render(OUT_PDF, cleanup=True, format="pdf")
-                print(f"[OK] Graphviz PDF written: {OUT_PDF}")
-
+                print(f"[OK] Saved: {OUT_PDF}")
             if EXPORT_PNG:
                 graph.render(OUT_PNG, cleanup=True, format="png")
-                print(f"[OK] Graphviz PNG written: {OUT_PNG}")
+                print(f"[OK] Saved: {OUT_PNG}")
 
-            print("[DONE] Graphviz export complete.")
             return
         except Exception as e:
             print("[WARN] Graphviz export failed, using Matplotlib fallback.")
@@ -99,15 +92,13 @@ def main():
         print("[INFO] PDF/PNG export disabled.")
         return
 
-    print("[INFO] Using Matplotlib fallback.")
-
     n_nodes = getattr(model.tree_, "node_count", 1)
     max_depth = getattr(model.tree_, "max_depth", 1)
 
     fig_width = min(max(12.0, n_nodes / 4.0), 160.0)
     fig_height = min(max(6.0, max_depth * 2.0), 120.0)
 
-    print(f"[INFO] Matplotlib figsize = ({fig_width:.1f}, {fig_height:.1f}), dpi=150")
+    # print(f"[INFO] Matplotlib figsize = ({fig_width:.1f}, {fig_height:.1f}), dpi=150")
 
     plt.figure(figsize=(fig_width, fig_height), dpi=150)
     plt.rcParams["figure.facecolor"] = "white"
@@ -127,18 +118,15 @@ def main():
 
         if EXPORT_PDF:
             plt.savefig(OUT_PDF, dpi=150, facecolor="white", bbox_inches="tight")
-            print(f"[OK] Matplotlib PDF saved: {OUT_PDF}")
-
+            print(f"[OK] Saved: {OUT_PDF}")
         if EXPORT_PNG:
             plt.savefig(OUT_PNG, dpi=150, facecolor="white", bbox_inches="tight")
-            print(f"[OK] Matplotlib PNG saved: {OUT_PNG}")
+            print(f"[OK] Saved: {OUT_PNG}")
     except Exception as e:
         print("[ERROR] Matplotlib rendering failed:", file=sys.stderr)
         print(e, file=sys.stderr)
     finally:
         plt.close()
-
-    print("[DONE] All exports complete.")
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.model_selection import train_test_split, ParameterGrid, cross_val_score
+from sklearn.model_selection import train_test_split, ParameterGrid
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 import joblib
 from tqdm import tqdm
@@ -67,8 +67,8 @@ y_raw = df["label"].values
 # =======================================
 # LABEL ENCODER
 # =======================================
-le = LabelEncoder()
-y = le.fit_transform(y_raw)
+label_encoder = LabelEncoder()
+y = label_encoder.fit_transform(y_raw)
 
 # =======================================
 # NORMALIZATION
@@ -78,14 +78,17 @@ scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
 # =======================================
-# TRAIN / TEST SPLIT
+# TRAIN / VAL / TEST SPLIT
 # =======================================
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.20, random_state=42, stratify=y
 )
+X_train, X_val, y_train, y_val = train_test_split(
+    X_train, y_train, test_size=0.2, random_state=42, stratify=y_train
+)
 
 # =======================================
-# MANUAL GRID SEARCH WITH TQDM
+# GRID SEARCH WITH TQDM
 # =======================================
 params = {
     "max_depth": [4, 6, 8, 10, 12, None],
@@ -94,7 +97,7 @@ params = {
 }
 
 param_grid = list(ParameterGrid(params))
-print(f"Grid Search: {len(param_grid)} combinations × 3-fold CV")
+print(f"Grid Search: {len(param_grid)} combinations")
 
 best_score = -np.inf
 best_params = None
@@ -103,17 +106,9 @@ start = time.time()
 
 for p in tqdm(param_grid, desc="Grid Search", unit="combo"):
     clf = DecisionTreeClassifier(**p)
-
-    # Use cross_val_score for proper 3-fold CV
-    scores = cross_val_score(
-        clf,
-        X_train,
-        y_train,
-        cv=3,
-        scoring="f1_macro",
-        n_jobs=1  # keep predictable timing for tqdm
-    )
-    mean_score = scores.mean()
+    clf.fit(X_train, y_train)
+    y_val_pred = clf.predict(X_val)
+    mean_score = f1_score(y_val, y_val_pred, average="macro")
     if mean_score > best_score:
         best_score = mean_score
         best_params = p
@@ -135,7 +130,7 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 
 print("\n=== CLASSIFICATION REPORT ===")
-print(classification_report(y_test, y_pred, target_names=le.classes_))
+print(classification_report(y_test, y_pred, target_names=label_encoder.classes_))
 
 print("\n=== CONFUSION MATRIX ===")
 print(confusion_matrix(y_test, y_pred))
@@ -149,14 +144,16 @@ for name, importance in zip(feature_cols, model.feature_importances_):
 # =======================================
 joblib.dump({
     "model": model,
-    "label_encoder": le,
+    "label_encoder": label_encoder,
     "scaler": scaler,
     "feature_cols": feature_cols,
     "best_params": best_params
 }, MODEL_PATH)
 
-print(f"\n[SAVED] Model saved to {MODEL_PATH}\n")
+print(f"\n[SAVED] Model saved to {MODEL_PATH}")
 
 print("[INFO] Generating decision tree diagram...")
-import draw_tree
-draw_tree.main()
+import export_decision_tree
+export_decision_tree.main()
+import export_reports
+export_reports.main()

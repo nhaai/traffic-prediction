@@ -107,10 +107,10 @@ python3 prepare_dataset.py --reset --all
 This performs:
 
 - Cleaning (Gaussian blur)
-- Resizing to 224×224
+- Resizing to 640×640
 - Feature extraction
 - Labeling (free_flow/moderate/congested)
-- train/val/test split (70/20/10)
+- train/val/test split (60/20/20)
 
 Outputs stored in:
 
