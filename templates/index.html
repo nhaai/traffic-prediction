@@ -32,7 +32,9 @@
             <h3 class="text-xl font-bold mb-2">{{ r.filename }}</h3>
 
             <div class="flex space-x-4">
-                <img src="{{ r.path }}" alt="" class="w-64 rounded border"/>
+                <a href="{{ r.path }}" target="_blank">
+                    <img src="{{ r.path }}" alt="" class="w-64 rounded border object-contain cursor-pointer"/>
+                </a>
 
                 <div class="flex-1">
                     <p class="text-lg">

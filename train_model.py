@@ -155,3 +155,7 @@ joblib.dump({
 }, MODEL_PATH)
 
 print(f"\n[SAVED] Model saved to {MODEL_PATH}\n")
+
+print("[INFO] Generating decision tree diagram...")
+import draw_tree
+draw_tree.main()

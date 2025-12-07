@@ -10,14 +10,50 @@ from ultralytics import YOLO
 with open("camera_config.json", "r") as f:
     CAM_CFG = json.load(f)
 
+CURRENT_FILENAME = None
+MIN_BOX_RATIO = 0.00005  # lowered threshold → keep small motorcycles
 yolo = YOLO("yolov8s.pt")
 
 # =======================================
 # NIGHT DETECTION
 # =======================================
 def is_night(gray):
+    timestamp = extract_timestamp(CURRENT_FILENAME)
+    if timestamp:
+        return is_night_by_time(timestamp)
+
     brightness = np.mean(gray)
-    return brightness < 90
+    bright_pixels = np.sum(gray > 220)
+    ratio_bright = bright_pixels / gray.size
+    return (brightness < 110) or (ratio_bright > 0.006)
+
+def is_night_by_time(timestamp):
+    # timestamp format: YYYYMMDD_HHMMSS
+    if timestamp is None or len(timestamp) < 15:
+        return False
+
+    # parse HHMM
+    hh = int(timestamp[9:11])
+    mm = int(timestamp[11:13])
+    cur_minutes = hh * 60 + mm
+
+    # load night range
+    night_range = CAM_CFG.get("night_range", ["18:00", "06:00"])
+    start_str, end_str = night_range
+
+    def to_minutes(t):
+        h, m = map(int, t.split(":"))
+        return h * 60 + m
+
+    start = to_minutes(start_str)
+    end = to_minutes(end_str)
+
+    # daytime range (not overnight)
+    if start < end:
+        return start <= cur_minutes < end
+
+    # overnight range (e.g. 18:00 → 06:00)
+    return (cur_minutes >= start) or (cur_minutes < end)
 
 def night_adjust(feats):
     # mark night
@@ -42,6 +78,7 @@ def night_adjust(feats):
     else:
         boost = 1.00
 
+    # boost vehicle counts slightly (night harder to detect)
     feats["car"] = int(feats["car"] * boost)
     feats["motorcycle"] = int(feats["motorcycle"] * boost)
     feats["bus"] = int(feats["bus"] * boost)
@@ -49,7 +86,7 @@ def night_adjust(feats):
 
     feats["total"] = feats["car"] + feats["motorcycle"] + feats["bus"] + feats["truck"]
 
-    # bbox_area_ratio adjust
+    # bbox-area adjustments to compensate for darker images
     feats["bbox_area_ratio"] *= 1.12
     feats["mean_bbox_area"] *= 1.05
     feats["max_bbox_area"] *= 1.03
@@ -61,7 +98,7 @@ def night_adjust(feats):
 # =======================================
 def compute_zones(h, boxes, cam_id):
     cam_zones = CAM_CFG[cam_id]["zones"]
-    ztop = cam_zones["top"] # [y0%, y1%]
+    ztop = cam_zones["top"]
     zmid = cam_zones["mid"]
     zbot = cam_zones["bottom"]
 
@@ -88,6 +125,8 @@ def detect_rain(gray):
     edges = cv2.Canny(gray, 80, 160)
     edge_density = np.sum(edges > 0) / gray.size
     brightness = np.mean(gray)
+
+    # simple rule remains, but works better with improved night detection
     if edge_density > 0.32 and brightness < 120:
         return 1
     return 0
@@ -96,17 +135,19 @@ def detect_rain(gray):
 # VEHICLES DETECTION
 # =======================================
 def detect_objects(img, night=False):
+    # confidence threshold (night → allow lower confidence)
     if night:
-        conf_car = 0.12
-        conf_motor = 0.06
+        conf_car = 0.10    # lowered for night scenes
+        conf_motor = 0.04  # critical for motorcycles
     else:
-        conf_car = 0.18
-        conf_motor = 0.12
+        conf_car = 0.13
+        conf_motor = 0.04  # matching crowded-scene tuning
 
-    base_conf = min(conf_car, conf_motor)
-    results = yolo(img, conf=base_conf, verbose=False)[0]
+    # using very low YOLO base conf → detect as many boxes as possible
+    # higher iou suppresses fewer true positives in dense crowds
+    results = yolo(img, conf=0.02, iou=0.40, verbose=False)[0]
 
-    vehicle_classes = {2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+    vehicle_classes = {1: "motorcycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
     objs = []
 
     for box in results.boxes:
@@ -116,6 +157,8 @@ def detect_objects(img, night=False):
 
         label = vehicle_classes[cls]
         conf = float(box.conf)
+
+        # confidence filtering but kept intentionally loose for motorcycles
         if label == "motorcycle" and conf < conf_motor:
             continue
         if label == "car" and conf < conf_car:
@@ -127,9 +170,11 @@ def detect_objects(img, night=False):
 
         objs.append({"label": label, "conf": conf, "bbox": (x1, y1, x2, y2)})
 
-    # reduce duplicates (lower threshold → better for crowded scenes)
+    # sort by confidence before NMS-like suppression
     objs = sorted(objs, key=lambda o: o["conf"], reverse=True)
-    return suppress_duplicates(objs, iou_thres=0.45)
+
+    # lower-threshold duplicate suppression → keep more boxes in dense scenes
+    return suppress_duplicates(objs, iou_thres=0.30)
 
 # =======================================
 # NMS SECONDARY
@@ -172,8 +217,7 @@ def extract_features(img, cam_id):
     area = h * w
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    brightness = float(np.mean(gray))
-    night = brightness < 60
+    night = is_night(gray)
     rain = detect_rain(gray)
     objs = detect_objects(img, night)
 
@@ -181,7 +225,6 @@ def extract_features(img, cam_id):
     bbox_areas = []
     box_list = []
 
-    # zone thresholds from config
     cam_zones = CAM_CFG[cam_id]["zones"]
     zmid = cam_zones["mid"]
     zbot = cam_zones["bottom"]
@@ -194,7 +237,7 @@ def extract_features(img, cam_id):
         x1, y1, x2, y2 = o["bbox"]
         bbox_area = (x2 - x1) * (y2 - y1)
         ratio = bbox_area / area
-        if ratio < 0.00025:
+        if ratio < MIN_BOX_RATIO:
             continue
 
         counts[lbl] += 1
@@ -205,6 +248,7 @@ def extract_features(img, cam_id):
         y_bottom = y2 / h
         if zbot[0] <= y_bottom < zbot[1] and lbl == "motorcycle":
             bottom_motor += 1
+
         # mid zone
         if zmid[0] <= y_bottom < zmid[1] and lbl == "car":
             mid_car += 1
@@ -238,7 +282,7 @@ def extract_features(img, cam_id):
         "bbox_area_ratio": bbox_area_ratio,
         "mean_bbox_area": mean_bbox_area,
         "max_bbox_area": max_bbox_area,
-        "brightness": brightness,
+        "brightness": float(np.mean(gray)),
         "sharpness": sharpness,
         "edge_density": edge_density,
 
@@ -261,10 +305,18 @@ def extract_features(img, cam_id):
     return feats
 
 # =======================================
-# CAM ID EXTRACTION
+# FILE INFO EXTRACTION
 # =======================================
 def extract_cam_id(filename):
+    # expected name: cam07_20251203_173405.png
     name = os.path.basename(filename).lower()
     if name.startswith("cam") and len(name) >= 5:
-        return name[:5] # cam09, cam10 ...
+        return name[:5]
+    return None
+
+def extract_timestamp(filename):
+    base = os.path.basename(filename)
+    parts = base.split("_")
+    if len(parts) >= 3:
+        return parts[1] + "_" + parts[2].split(".")[0]
     return None

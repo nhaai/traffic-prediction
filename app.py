@@ -4,6 +4,8 @@ import numpy as np
 from flask import Flask, render_template, request
 import joblib
 from werkzeug.utils import secure_filename
+
+import features
 from features import extract_features, extract_cam_id
 
 UPLOAD_DIR = "static/uploads"
@@ -27,7 +29,7 @@ print("[INFO] Required features:", feature_cols)
 # ===================================================
 # PREDICT FUNCTION
 # ===================================================
-def predict_image(path):
+def predict(path):
     img = cv2.imread(path)
 
     if img is None:
@@ -38,6 +40,7 @@ def predict_image(path):
         raise ValueError("Filename must begin with camXX_ ... to detect correct camera rules")
 
     # Extract full feature set via official pipeline
+    features.CURRENT_FILENAME = path
     feats = extract_features(img, cam_id)
 
     # Prepare X in correct order
@@ -75,7 +78,7 @@ def index():
             file.save(save_path)
 
             try:
-                label, feats = predict_image(save_path)
+                label, feats = predict(save_path)
             except Exception as e:
                 results.append({
                     "filename": filename,

@@ -3,6 +3,8 @@ import os
 import cv2
 import numpy as np
 import joblib
+
+import features
 from features import extract_cam_id, extract_features
 
 # =======================================
@@ -27,19 +29,20 @@ print("[INFO] Features expected:", feature_cols)
 # =======================================
 # PREDICT FUNCTION
 # =======================================
-def predict(img_path):
-    img = cv2.imread(img_path)
+def predict(path):
+    img = cv2.imread(path)
 
     if img is None:
-        print("[ERROR] Could not read image:", img_path)
+        print("[ERROR] Could not read image:", path)
         return None
 
-    cam_id = extract_cam_id(img_path)
+    cam_id = extract_cam_id(path)
     if cam_id is None:
-        print("[ERROR] Could not extract cam_id from filename:", img_path)
+        print("[ERROR] Could not extract cam_id from filename:", path)
         print("File must start with camXX_... e.g. cam09_xxx.jpg")
         return None
 
+    features.CURRENT_FILENAME = path
     feats = extract_features(img, cam_id)
 
     # Build input vector in correct order
@@ -55,7 +58,7 @@ def predict(img_path):
     label = label_encoder.inverse_transform(pred)[0]
 
     print("\n=== TRAFFIC PREDICTION RESULT ===")
-    print(f"Image: {img_path}")
+    print(f"Image: {path}")
     print(f"Camera: {cam_id}")
     print(f"Predicted label: **{label.upper()}**")
     print("\nExtracted feature values:")
@@ -70,8 +73,8 @@ def predict(img_path):
 # =======================================
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        path = sys.argv[1]
+        img_path = sys.argv[1]
     else:
-        path = input("Enter image path: ").strip()
+        img_path = input("Enter image path: ").strip()
 
-    predict(path)
+    predict(img_path)

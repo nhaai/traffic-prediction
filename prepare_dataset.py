@@ -6,7 +6,8 @@ import argparse
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from features import extract_cam_id, extract_features
+import features
+from features import extract_features, extract_cam_id
 from labeling import auto_label
 
 RAW_DIR = "dataset_raw"
@@ -113,6 +114,7 @@ def process_dataset():
             cv2.imwrite(clean_path, img_resized)
 
         # Extract features
+        features.CURRENT_FILENAME = clean_path
         feats = extract_features(img, cam_id)
         feats["filepath"] = clean_path
         feats["cam_id"] = cam_id
