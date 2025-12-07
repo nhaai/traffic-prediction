@@ -160,12 +160,6 @@ Open browser:
 http://127.0.0.1:5000/
 ```
 
-Or:
-
-```bash
-python3 console.py static/uploads/congested/cam07_20251203_173405.png
-```
-
 ---
 
 ## 📊 6. Feature Set Used
@@ -200,4 +194,3 @@ python3 console.py static/uploads/congested/cam07_20251203_173405.png
 - Conduct data collection and capture at least 2,000 samples (with supporting evidence).
 - Then proceed with labeling (use LabelImg to crop and label image data), and perform data preprocessing and feature extraction for other types of data.
 - The first evaluation session includes: the dataset, data preprocessing and feature extraction, train/validation/test split, running one machine learning model (Decision Tree), and reporting the accuracy metrics: Recall, F1, and Precision.
-- Report file: must follow a master's thesis structure, include all required sections, with 30–40 pages of main content.

@@ -37,7 +37,7 @@ def predict(path):
 
     cam_id = extract_cam_id(path)
     if cam_id is None:
-        raise ValueError("Filename must begin with camXX_ ... to detect correct camera rules")
+        cam_id = "default"
 
     # extract full feature set via official pipeline
     features.CURRENT_FILENAME = path
