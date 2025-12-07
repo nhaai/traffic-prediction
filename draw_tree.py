@@ -16,9 +16,9 @@ OUT_TXT = "static/decision_tree.txt"
 
 os.makedirs(os.path.dirname(OUT_PDF), exist_ok=True)
 
-# =====================================================
+# =======================================
 # LOAD MODEL
-# =====================================================
+# =======================================
 if not os.path.exists(MODEL_PATH):
     print(f"[ERROR] Model file not found: {MODEL_PATH}", file=sys.stderr)
     sys.exit(2)
@@ -40,9 +40,9 @@ classes = list(label_encoder.classes_)
 print("[INFO] Loaded model and metadata.")
 print(f"[INFO] Tree nodes: {model.tree_.node_count}, max_depth: {model.tree_.max_depth}")
 
-# =====================================================
+# =======================================
 # Export text rules
-# =====================================================
+# =======================================
 if EXPORT_TXT:
     print(f"[INFO] Exporting text rules → {OUT_TXT}")
     try:
@@ -55,9 +55,9 @@ if EXPORT_TXT:
 
     print("[OK] Text rules saved.")
 
-# =====================================================
+# =======================================
 # Try Graphviz first (best quality vector)
-# =====================================================
+# =======================================
 use_graphviz = False
 try:
     import graphviz
@@ -101,9 +101,9 @@ if use_graphviz and (EXPORT_PDF or EXPORT_PNG):
         print("[WARN] Graphviz export failed, falling back to Matplotlib.", file=sys.stderr)
         print("[WARN]", str(e), file=sys.stderr)
 
-# =====================================================
+# =======================================
 # Compute a sensible figsize proportional to tree size (node_count, depth)
-# =====================================================
+# =======================================
 if not (EXPORT_PDF or EXPORT_PNG):
     print("[INFO] PDF/PNG export disabled.")
     sys.exit(0)
@@ -122,9 +122,9 @@ print(f"[INFO] Matplotlib figsize = ({fig_width:.1f}, {fig_height:.1f}), dpi=150
 plt.figure(figsize=(fig_width, fig_height), dpi=150)
 plt.rcParams["figure.facecolor"] = "white"
 
-# =====================================================
+# =======================================
 # Plot full tree (no max_depth) to capture all nodes
-# =====================================================
+# =======================================
 try:
     tree.plot_tree(
         model,

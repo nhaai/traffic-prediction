@@ -5,9 +5,9 @@ import numpy as np
 import joblib
 from features import extract_cam_id, extract_features
 
-# =====================================================
+# =======================================
 # LOAD MODEL + METADATA
-# =====================================================
+# =======================================
 MODEL_PATH = "model.pkl"
 
 if not os.path.exists(MODEL_PATH):
@@ -24,9 +24,9 @@ feature_cols = DATA["feature_cols"]
 print("[INFO] Model loaded.")
 print("[INFO] Features expected:", feature_cols)
 
-# =====================================================
+# =======================================
 # PREDICT FUNCTION
-# =====================================================
+# =======================================
 def predict(img_path):
     img = cv2.imread(img_path)
 
@@ -65,9 +65,9 @@ def predict(img_path):
     print("\nDone.\n")
     return label
 
-# =====================================================
+# =======================================
 # MAIN
-# =====================================================
+# =======================================
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         path = sys.argv[1]

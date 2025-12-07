@@ -18,9 +18,9 @@ IMG_SIZE = 640
 os.makedirs(CLEAN_DIR, exist_ok=True)
 os.makedirs(SPLIT_DIR, exist_ok=True)
 
-# =====================================================
+# =======================================
 # CLI
-# =====================================================
+# =======================================
 parser = argparse.ArgumentParser(description="Dataset processor")
 parser.add_argument(
     "--reset",
@@ -29,9 +29,9 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# =====================================================
+# =======================================
 # RESET DATASET
-# =====================================================
+# =======================================
 def reset_dataset(auto_confirm=False):
     print("WARNING: This will delete:")
     print("- dataset_cleaned/")
@@ -69,9 +69,9 @@ if args.reset:
     if not ok:
         exit(1)
 
-# =====================================================
+# =======================================
 # PROCESS DATASET
-# =====================================================
+# =======================================
 def process_dataset():
     # Load old CSV
     if os.path.exists(OUTPUT_CSV):
@@ -131,9 +131,9 @@ def process_dataset():
     print(f"[DONE] Dataset now contains {len(final_df)} samples.")
     return final_df
 
-# =====================================================
+# =======================================
 # SPLIT DATASET
-# =====================================================
+# =======================================
 def split_dataset(df):
     shutil.rmtree(SPLIT_DIR, ignore_errors=True)
     os.makedirs(SPLIT_DIR, exist_ok=True)
@@ -159,9 +159,9 @@ def split_dataset(df):
 
     print("[DONE] Split train/val/test.")
 
-# =====================================================
+# =======================================
 # MAIN
-# =====================================================
+# =======================================
 if __name__ == "__main__":
     processed = process_dataset()
     split_dataset(processed)

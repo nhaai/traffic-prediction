@@ -153,7 +153,7 @@ http://127.0.0.1:5000/
 Or:
 
 ```bash
-python3 console.py dataset_cleaned/cam11_20251206_132014.png
+python3 console.py static/uploads/congested/cam07_20251203_173405.png
 ```
 
 ---

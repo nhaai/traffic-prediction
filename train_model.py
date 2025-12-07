@@ -13,9 +13,9 @@ import sys
 CSV_PATH = "dataset_features.csv"
 MODEL_PATH = "model.pkl"
 
-# =====================================================
+# =======================================
 # LOAD CSV
-# =====================================================
+# =======================================
 if not os.path.exists(CSV_PATH):
     print(f"CSV not found: {CSV_PATH}")
     sys.exit(1)
@@ -63,29 +63,29 @@ print("\nUsing feature columns:", feature_cols, "\n")
 X = df[feature_cols].values
 y_raw = df["label"].values
 
-# =====================================================
+# =======================================
 # LABEL ENCODER
-# =====================================================
+# =======================================
 le = LabelEncoder()
 y = le.fit_transform(y_raw)
 
-# =====================================================
+# =======================================
 # NORMALIZATION
 # (Decision Tree does not require it, but OK for consistency)
-# =====================================================
+# =======================================
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-# =====================================================
+# =======================================
 # TRAIN / TEST SPLIT
-# =====================================================
+# =======================================
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.20, random_state=42, stratify=y
 )
 
-# =====================================================
+# =======================================
 # MANUAL GRID SEARCH WITH TQDM
-# =====================================================
+# =======================================
 params = {
     "max_depth": [4, 6, 8, 10, 12, None],
     "criterion": ["gini", "entropy"],
@@ -122,15 +122,15 @@ print(f"\nGrid Search done in {elapsed:.2f} seconds")
 print(f"Best F1_macro: {best_score:.4f}")
 print(f"Best params: {best_params}\n")
 
-# =====================================================
+# =======================================
 # TRAIN FINAL MODEL
-# =====================================================
+# =======================================
 model = DecisionTreeClassifier(**best_params)
 model.fit(X_train, y_train)
 
-# =====================================================
+# =======================================
 # EVALUATION
-# =====================================================
+# =======================================
 y_pred = model.predict(X_test)
 
 print("\n=== CLASSIFICATION REPORT ===")
@@ -143,9 +143,9 @@ print("\n=== FEATURE IMPORTANCE ===")
 for name, importance in zip(feature_cols, model.feature_importances_):
     print(f"{name:20s} : {importance:.4f}")
 
-# =====================================================
+# =======================================
 # SAVE MODEL
-# =====================================================
+# =======================================
 joblib.dump({
     "model": model,
     "label_encoder": le,
