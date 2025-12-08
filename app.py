@@ -43,6 +43,9 @@ def predict(path):
     features.CURRENT_FILENAME = path
     feats = extract_features(img, cam_id)
 
+    if features.is_non_traffic(feats):
+        raise ValueError("Image does not appear to contain traffic.")
+
     # prepare X in correct order
     X = np.array([feats[col] for col in feature_cols]).reshape(1, -1)
     X_scaled = scaler.transform(X)
@@ -92,7 +95,7 @@ def index():
                 "filename": filename,
                 "path": save_path,
                 "label": label,
-                "features": feats,
+                "features": feats
             })
 
     return render_template("index.html", results=results)

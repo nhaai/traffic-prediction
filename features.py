@@ -313,6 +313,27 @@ def extract_features(img, cam_id):
 
     return feats
 
+def is_non_traffic(feats):
+    no_vehicle = (
+        feats["car"] == 0 and
+        feats["motorcycle"] == 0 and
+        feats["bus"] == 0 and
+        feats["truck"] == 0
+    )
+    very_low_area = feats["bbox_area_ratio"] < 0.0005
+    low_crowd = feats["crowd_density"] < 0.2
+    unrealistic_edges = feats["edge_density"] < 0.02 or feats["edge_density"] > 0.35
+    zero_zones = (feats["zone_top"] + feats["zone_mid"] + feats["zone_bottom"]) == 0
+    conditions = [
+        no_vehicle,
+        very_low_area,
+        low_crowd,
+        unrealistic_edges,
+        zero_zones
+    ]
+    score = sum(1 for c in conditions if c)
+    return score >= 3
+
 # =======================================
 # FILE INFO EXTRACTION
 # =======================================
