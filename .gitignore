@@ -3,3 +3,4 @@
 /.venv
 /.venv39
 /dataset_features.csv
+/model.pkl

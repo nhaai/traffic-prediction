@@ -192,5 +192,8 @@ http://127.0.0.1:5000/
 ## 📝 Notes
 
 - Conduct data collection and capture at least 2,000 samples (with supporting evidence).
-- Then proceed with labeling (use LabelImg to crop and label image data), and perform data preprocessing and feature extraction for other types of data.
-- The first evaluation session includes: the dataset, data preprocessing and feature extraction, train/validation/test split, running one machine learning model (Decision Tree), and reporting the accuracy metrics: Recall, F1, and Precision.
+- Then proceed with labeling (use LabelImg to crop and label image data),
+  and perform data preprocessing and feature extraction for other types of data.
+- The first evaluation session includes: the dataset, data preprocessing and feature extraction,
+  train/validation/test split, running one machine learning model (Decision Tree),
+  and reporting the accuracy metrics: Precision, recall, and F1 score.

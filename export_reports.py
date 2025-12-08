@@ -1,95 +1,55 @@
-import pandas as pd
-import joblib
 import os
-import sys
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
+from ml_utils import MODEL_PATH, CSV_PATH, load_model, load_dataset, split_dataset, predict_with_model
 
-CSV_PATH = "dataset_features.csv"
-MODEL_PATH = "model.pkl"
-OUT_PNG_1 = "static/confusion_matrix.png"
-OUT_PNG_2 = "static/classification_report.png"
+OUT_CM = "static/uploads/confusion_matrix.png"
+OUT_CR = "static/uploads/classification_report.png"
 
-os.makedirs(os.path.dirname(OUT_PNG_1), exist_ok=True)
+os.makedirs(os.path.dirname(OUT_CM), exist_ok=True)
 
 def main():
-    if not os.path.exists(CSV_PATH):
-        print(f"[ERROR] CSV not found: {CSV_PATH}", file=sys.stderr)
-        return
-    if not os.path.exists(MODEL_PATH):
-        print(f"[ERROR] Model not found: {MODEL_PATH}", file=sys.stderr)
-        return
+    # load model
+    model, label_encoder, scaler, feature_cols, _ = load_model(MODEL_PATH)
 
-    df = pd.read_csv(CSV_PATH)
-    saved = joblib.load(MODEL_PATH)
+    # load dataset
+    df, X, y_raw, y, used_cols, _ = load_dataset(CSV_PATH, feature_cols)
 
-    model = saved["model"]
-    label_encoder = saved["label_encoder"]
-    scaler = saved["scaler"]
-    feature_cols = saved["feature_cols"]
+    # split dataset
+    _, _, X_test, _, _, y_test = split_dataset(X, y)
 
-    X = df[feature_cols].values
-    y_raw = df["label"].values
-    y = label_encoder.transform(y_raw)
-
-    # train / test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
-    )
-
-    # validation split is irrelevant here because we only evaluate test set
-    X_test_scaled = scaler.transform(X_test)
-
-    y_pred = model.predict(X_test_scaled)
+    # predict
+    y_pred = predict_with_model(model, scaler, X_test)
     class_names = label_encoder.classes_
 
-    # confusion matrix plot
+    # confusion matrix
     cm = confusion_matrix(y_test, y_pred)
 
     plt.figure(figsize=(7, 5))
-    sns.heatmap(
-        cm,
-        annot=True,
-        fmt="d",
-        cmap="Blues",
-        xticklabels=class_names,
-        yticklabels=class_names
-    )
-    plt.title("Confusion Matrix")
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_names, yticklabels=class_names)
+    # plt.title("Confusion Matrix")
     plt.tight_layout()
-    plt.savefig(OUT_PNG_1, dpi=300)
+    plt.savefig(OUT_CM, dpi=150)
     plt.close()
+    print(f"[OK] Saved {OUT_CM}")
 
-    print(f"[OK] Saved: {OUT_PNG_1}")
-
-    # classification report heatmap
-    report = classification_report(
-        y_test, y_pred, target_names=class_names, output_dict=True
+    # classification report
+    report = classification_report(y_test, y_pred, target_names=class_names, output_dict=True)
+    report_df = (
+        pd.DataFrame(report)
+        .transpose()
+        .loc[class_names.tolist() + ["macro avg", "weighted avg"], ["precision", "recall", "f1-score"]]
     )
-
-    df_report = pd.DataFrame(report).transpose()
-
-    rows = class_names.tolist() + ["macro avg", "weighted avg"]
-    df_plot = df_report.loc[rows, ["precision", "recall", "f1-score"]]
 
     plt.figure(figsize=(8, 6))
-    sns.heatmap(
-        df_plot,
-        annot=True,
-        cmap="Greens",
-        fmt=".2f",
-        linewidths=.5
-    )
-    plt.title("Classification Report Heatmap")
+    sns.heatmap(report_df, annot=True, cmap="Greens", fmt=".2f")
+    # plt.title("Classification Report")
     plt.tight_layout()
-    plt.savefig(OUT_PNG_2, dpi=300)
+    plt.savefig(OUT_CR, dpi=150)
     plt.close()
-
-    print(f"[OK] Saved: {OUT_PNG_2}")
+    print(f"[OK] Saved {OUT_CR}")
 
 if __name__ == "__main__":
     main()
