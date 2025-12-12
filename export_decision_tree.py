@@ -7,8 +7,8 @@ from ml_utils import MODEL_PATH, load_model
 EXPORT_PDF = False
 EXPORT_PNG = True
 
-OUT_PDF = "static/uploads/decision_tree.pdf"
-OUT_PNG = "static/uploads/decision_tree.png"
+OUT_PDF = "static/uploads/00_decision_tree.pdf"
+OUT_PNG = "static/uploads/00_decision_tree.png"
 
 os.makedirs(os.path.dirname(OUT_PNG), exist_ok=True)
 
@@ -49,7 +49,7 @@ def main():
         pass
 
     # fallback: matplotlib
-    plt.figure(figsize=(20, 12), dpi=150)
+    plt.figure(figsize=(20, 12), dpi=200)
     tree.plot_tree(
         model,
         feature_names=feature_cols,
@@ -60,12 +60,12 @@ def main():
     plt.tight_layout()
 
     if EXPORT_PNG:
-        plt.savefig(OUT_PNG, dpi=150)
-        print("[OK] Saved PNG (Matplotlib)")
+        plt.savefig(OUT_PNG, dpi=200)
+        print("[OK] Saved decision tree as png (matplotlib)")
 
     if EXPORT_PDF:
-        plt.savefig(OUT_PDF, dpi=150)
-        print("[OK] Saved PDF (Matplotlib)")
+        plt.savefig(OUT_PDF, dpi=200)
+        print("[OK] Saved decision tree as pdf (matplotlib)")
 
     plt.close()
 

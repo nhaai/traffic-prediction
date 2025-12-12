@@ -1,55 +1,146 @@
 import os
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay
+from sklearn.preprocessing import LabelEncoder
 from ml_utils import MODEL_PATH, CSV_PATH, load_model, load_dataset, split_dataset, predict_with_model
 
-OUT_CM = "static/uploads/confusion_matrix.png"
-OUT_CR = "static/uploads/classification_report.png"
+# =======================================
+# LABEL DISTRIBUTION
+# =======================================
+def export_label_distribution(df, save_path):
+    labels = df["label"].value_counts()
 
-os.makedirs(os.path.dirname(OUT_CM), exist_ok=True)
+    plt.figure(figsize=(6, 6))
+    plt.pie(labels.values, labels=labels.index, autopct="%1.1f%%")
+    plt.title("Label Distribution")
 
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, bbox_inches="tight", dpi=200)
+    plt.close()
+
+# =======================================
+# HISTOGRAM OF KEY FEATURES
+# =======================================
+def export_feature_histogram(df, feature, save_path):
+    plt.figure(figsize=(7, 4))
+    sns.histplot(data=df, x=feature, hue="label", kde=False, alpha=0.6)
+    plt.title(f"Histogram of {feature}")
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, bbox_inches="tight", dpi=200)
+    plt.close()
+
+# =======================================
+# BOXPlot OF FEATURE
+# =======================================
+def export_feature_boxplot(df, feature, save_path):
+    plt.figure(figsize=(7, 4))
+    sns.boxplot(data=df, x="label", y=feature)
+    plt.title(f"Boxplot of {feature} by label")
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, bbox_inches="tight", dpi=200)
+    plt.close()
+
+# =======================================
+# SCATTER PLOT OF TWO FEATURES
+# =======================================
+def export_scatter_2d(df, feature_x, feature_y, save_path):
+    plt.figure(figsize=(6, 5))
+    sns.scatterplot(
+        data=df, x=feature_x, y=feature_y, hue="label", alpha=0.7
+    )
+    plt.title(f"{feature_x} vs {feature_y}")
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, bbox_inches="tight", dpi=200)
+    plt.close()
+
+# =======================================
+# FEATURE IMPORTANCE BAR CHART
+# =======================================
+def export_feature_importance(model, feature_cols, save_path):
+    importances = model.feature_importances_
+    idx = np.argsort(importances)[::-1]
+
+    plt.figure(figsize=(8, 6))
+    plt.barh(np.array(feature_cols)[idx], importances[idx])
+    plt.gca().invert_yaxis()
+    plt.title("Feature Importance (Random Forest)")
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, bbox_inches="tight", dpi=200)
+    plt.close()
+
+# =======================================
+# CONFUSION MATRIX PLOT
+# =======================================
+def export_confusion_matrix_plot(y_test, y_pred, save_path):
+    cm = confusion_matrix(y_test, y_pred)
+    disp = ConfusionMatrixDisplay(cm)
+
+    plt.figure(figsize=(6, 5))
+    disp.plot(cmap="Blues", colorbar=False)
+    plt.title("Confusion Matrix")
+    plt.tight_layout()
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, bbox_inches="tight", dpi=200)
+    plt.close()
+
+# =======================================
+# CLASSIFICATION REPORT PLOT
+# =======================================
+def export_classification_report_plot(y_test, y_pred, save_path):
+    report = classification_report(y_test, y_pred, output_dict=True)
+    df = pd.DataFrame(report).transpose()
+
+    plt.figure(figsize=(8, 5))
+    sns.heatmap(df.iloc[:-1, :], annot=True, cmap="Greens", fmt=".2f")
+    plt.title("Classification Report")
+    plt.tight_layout()
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, bbox_inches="tight", dpi=200)
+    plt.close()
+
+# =======================================
+# MAIN
+# =======================================
 def main():
-    # load model
+    # load model & dataset
     model, label_encoder, scaler, feature_cols, _ = load_model(MODEL_PATH)
 
     # load dataset
     df, X, y_raw, y, used_cols, _ = load_dataset(CSV_PATH, feature_cols)
-
-    # split dataset
     _, _, X_test, _, _, y_test = split_dataset(X, y)
-
     # predict
     y_pred = predict_with_model(model, scaler, X_test)
-    class_names = label_encoder.classes_
+    # class_names = label_encoder.classes_
 
-    # confusion matrix
-    cm = confusion_matrix(y_test, y_pred)
+    # export reports
+    export_label_distribution(df, "static/uploads/01_label_distribution.png")
 
-    plt.figure(figsize=(7, 5))
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_names, yticklabels=class_names)
-    # plt.title("Confusion Matrix")
-    plt.tight_layout()
-    plt.savefig(OUT_CM, dpi=150)
-    plt.close()
-    print(f"[OK] Saved {OUT_CM}")
+    key_features = ["edge_density", "brightness", "sharpness", "bbox_area_ratio"]
+    for f in key_features:
+        if f in df.columns:
+            export_feature_histogram(df, f, f"static/uploads/02_histogram_{f}.png")
 
-    # classification report
-    report = classification_report(y_test, y_pred, target_names=class_names, output_dict=True)
-    report_df = (
-        pd.DataFrame(report)
-        .transpose()
-        .loc[class_names.tolist() + ["macro avg", "weighted avg"], ["precision", "recall", "f1-score"]]
-    )
+    for f in key_features:
+        if f in df.columns:
+            export_feature_boxplot(df, f, f"static/uploads/03_boxplot_{f}.png")
 
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(report_df, annot=True, cmap="Greens", fmt=".2f")
-    # plt.title("Classification Report")
-    plt.tight_layout()
-    plt.savefig(OUT_CR, dpi=150)
-    plt.close()
-    print(f"[OK] Saved {OUT_CR}")
+    f1, f2 = key_features[:2]
+    export_scatter_2d(df, f1, f2, "static/uploads/04_scatter_features.png")
+
+    export_feature_importance(model, feature_cols, "static/uploads/05_feature_importance.png")
+    export_confusion_matrix_plot(y_test, y_pred, "static/uploads/06_confusion_matrix.png")
+    export_classification_report_plot(y_test, y_pred, "static/uploads/07_classification_report.png")
+
+    print(f"[OK] Saved all reports")
 
 if __name__ == "__main__":
     main()
