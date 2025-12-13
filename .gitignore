@@ -2,5 +2,6 @@
 /.idea
 /.venv
 /.venv39
-/dataset_features.csv
-/model.pkl
+/dataset_cleaned
+/dataset_raw/**
+/dataset_split
