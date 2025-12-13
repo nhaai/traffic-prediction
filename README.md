@@ -37,30 +37,33 @@ pip install -r requirements.txt
 ```bash
 project/
 │
-├── capture_cam.js           # Capture script for traffic cameras
+├── capture_cam.js           # JavaScript script for capturing frames from traffic cameras
 │
-├── dataset_raw/             # Raw captured images
+├── dataset_raw/             # Raw input images captured from traffic cameras
 ├── dataset_cleaned/         # Cleaned + resized images
-├── dataset_split/           # train/val/test output folders
+├── dataset_split/           # train/val/test (70/20/10) output folders
 │
 ├── crowd_counter/
 │   ├── csrnet.py            # CSRNet wrapper for crowd_density feature
 │   └── model.pth            # Pretrained CSRNet weights (ShanghaiTech Part A)
 │                            # https://drive.google.com/file/d/1Z-atzS5Y2pOd-nEWqZRVBDMYJDreGWHH/view
 │
+│── camera_config.json       # Defines camera zones, ROI, and geometry parameters
+├── features.py              # Feature extraction module
+├── labeling.py              # Manual / semi-automatic labeling utilities
+├── ml_utils.py              # Utility functions
 ├── prepare_dataset.py       # Cleaning, resizing, detection, feature extraction, auto labeling, splitting
 ├── train_model.py           # Train decision tree model
-├── draw_tree.py             # Export decision tree visualization
+├── export_decision_tree.py  # Export decision tree visualization
+├── export_reports.py        # Generate evaluation reports and plots
 │
-├── console.py               # Run traffic prediction from the terminal
-├── app.py                   # Flask + Tailwind demo web interface
+├── app.py                   # Flask + Tailwind demo UI
 ├── static/
-│   └── uploads/             # Uploaded images
-│
+│   └── uploads/
 ├── templates/
-│   └── index.html           # Tailwind UI
+│   └── index.html
 |
-├── requirements.txt
+├── requirements.txt         # Python dependencies (pip)
 ├── Dockerfile
 ├── environment.yml
 └── README.md
