@@ -37,7 +37,7 @@ def load_model(model_path=MODEL_PATH):
 # =======================================
 # Load dataset & extract features
 # =======================================
-def load_dataset(csv_path=CSV_PATH, feature_cols=None):
+def load_dataset(csv_path=CSV_PATH, feature_cols=None, label_encoder=None):
     """
     Load CSV into df, and return:
         df, X (numpy), y_raw (labels string), y (encoded)
@@ -47,11 +47,8 @@ def load_dataset(csv_path=CSV_PATH, feature_cols=None):
         raise FileNotFoundError(f"CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
-    # print("Loaded CSV rows:", len(df))
-    # print(df.head())
 
     if feature_cols is None:
-        # auto-detect all numeric columns except label
         feature_cols = [c for c in df.columns if c not in ["label", "cam_id", "filepath"]]
 
     missing = [c for c in feature_cols if c not in df.columns]
@@ -61,20 +58,31 @@ def load_dataset(csv_path=CSV_PATH, feature_cols=None):
             print(" -", m)
         print("The model may behave unpredictably.\n")
 
-    # only keep columns that actually exist
     used_cols = [c for c in feature_cols if c in df.columns]
-
     X = df[used_cols].values
     y_raw = df["label"].values
 
-    label_encoder = LabelEncoder()
-    y = label_encoder.fit_transform(y_raw)
+    if label_encoder is None:
+        label_encoder = LabelEncoder()
+        y = label_encoder.fit_transform(y_raw)
+    else:
+        y = label_encoder.transform(y_raw)
 
     return df, X, y_raw, y, used_cols, label_encoder
 
+def load_split_dataset(split="train", feature_cols=None, label_encoder=None):
+    csv_map = {
+        "train": "train.csv",
+        "val": "val.csv",
+        "test": "test.csv",
+    }
+    if split not in csv_map:
+        raise ValueError("split must be train / val / test")
+
+    return load_dataset(csv_map[split], feature_cols=feature_cols, label_encoder=label_encoder)
+
 # =======================================
 # Fit scaling for training
-# Decision Tree does not require it, but OK for consistency
 # =======================================
 def fit_scaler(X):
     scaler = StandardScaler()
@@ -82,35 +90,10 @@ def fit_scaler(X):
     return scaler, X_scaled
 
 # =======================================
-# Transform using existing scaler (inference/evaluation)
+# Transform using existing scaler
 # =======================================
 def transform_with_scaler(X, scaler):
     return scaler.transform(X)
-
-# =======================================
-# Split dataset consistently
-# =======================================
-def split_dataset(X, y, test_size=0.20, val_size=0.20, random_state=42):
-    """
-    Return: X_train, X_val, X_test, y_train, y_val, y_test
-    """
-    # split train/test
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=test_size,
-        random_state=random_state,
-        stratify=y
-    )
-
-    # split train/val
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train, y_train,
-        test_size=val_size,
-        random_state=random_state,
-        stratify=y_train
-    )
-
-    return X_train, X_val, X_test, y_train, y_val, y_test
 
 # =======================================
 # Save model.pkl

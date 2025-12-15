@@ -6,12 +6,14 @@ from ml_utils import MODEL_PATH, load_model
 
 EXPORT_PDF = False
 EXPORT_PNG = True
-
 OUT_PDF = "static/uploads/00_decision_tree.pdf"
 OUT_PNG = "static/uploads/00_decision_tree.png"
 
 os.makedirs(os.path.dirname(OUT_PNG), exist_ok=True)
 
+# =======================================
+# MAIN
+# =======================================
 def main():
     model, label_encoder, scaler, feature_cols, _ = load_model(MODEL_PATH)
     print(f"[INFO] Tree nodes: {model.tree_.node_count}, depth: {model.tree_.max_depth}")
@@ -28,7 +30,7 @@ def main():
             model,
             out_file=None,
             feature_names=feature_cols,
-            class_names=label_encoder.classes_,
+            class_names=[str(c) for c in label_encoder.classes_],
             filled=True,
             rounded=True,
             special_characters=False
@@ -53,7 +55,7 @@ def main():
     tree.plot_tree(
         model,
         feature_names=feature_cols,
-        class_names=label_encoder.classes_,
+        class_names=[str(c) for c in label_encoder.classes_],
         filled=True,
         fontsize=8
     )

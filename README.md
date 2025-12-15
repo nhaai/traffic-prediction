@@ -37,26 +37,23 @@ pip install -r requirements.txt
 ```bash
 project/
 │
-├── capture_cam.js           # JavaScript script for capturing frames from traffic cameras
-│
 ├── dataset_raw/             # Raw input images captured from traffic cameras
 ├── dataset_cleaned/         # Cleaned + resized images
-├── dataset_split/           # train/val/test (70/20/10) output folders
 │
+│── camera_config.json       # Defines camera zones, ROI, and geometry parameters
+├── features.py              # Feature extraction module
 ├── crowd_counter/
 │   ├── csrnet.py            # CSRNet wrapper for crowd_density feature
 │   └── model.pth            # Pretrained CSRNet weights (ShanghaiTech Part A)
 │                            # https://drive.google.com/file/d/1Z-atzS5Y2pOd-nEWqZRVBDMYJDreGWHH/view
 │
-│── camera_config.json       # Defines camera zones, ROI, and geometry parameters
-├── features.py              # Feature extraction module
-├── labeling.py              # Manual / semi-automatic labeling utilities
-├── ml_utils.py              # Utility functions
-├── prepare_dataset.py       # Cleaning, resizing, detection, feature extraction, auto labeling, splitting
+├── prepare_dataset.py       # Cleaning, resizing, feature extraction
 ├── train_model.py           # Train decision tree model
-├── export_decision_tree.py  # Export decision tree visualization
-├── export_reports.py        # Generate evaluation reports and plots
+├── ml_utils.py              # Utility functions
+├── export_decision_tree.py  # Export decision tree
+├── export_reports.py        # Generate evaluation reports
 │
+├── capture_cam.js           # JavaScript script for capturing frames from traffic cameras
 ├── app.py                   # Flask + Tailwind demo UI
 ├── static/
 │   └── uploads/
@@ -65,9 +62,10 @@ project/
 |
 ├── requirements.txt         # Python dependencies (pip)
 ├── Dockerfile
-├── environment.yml
 └── README.md
 ```
+prepare_dataset.py → dataset_features.csv → train_model.py → ml_utils.split_dataset
+
 ---
 
 ## 🎥 3. Capturing Camera Streams
@@ -104,25 +102,18 @@ node capture_cam.js --cam_id cam11 \
 Run:
 
 ```bash
-python3 prepare_dataset.py --reset --all
+python3 prepare_dataset.py
 ```
 
 This performs:
 
-- Cleaning (Gaussian blur)
 - Resizing to 640×640
 - Feature extraction
-- Labeling (free_flow/moderate/congested)
-- train/val/test split (60/20/20)
 
 Outputs stored in:
 
 ```
 dataset_cleaned/
-dataset_split/
-├── train/
-├── val/
-└── test/
 dataset_features.csv
 ```
 
@@ -177,6 +168,8 @@ http://127.0.0.1:5000/
 | bbox_area_ratio   | Percentage of image area occupied by vehicles — strong congestion signal |
 | mean_bbox_area    | Larger bounding boxes → vehicles closer to camera → possible bottleneck  |
 | max_bbox_area     | Detects very large/close vehicles blocking the camera view               |
+| cluster_density   | Bounding-box density — captures clustering of vehicles                   |
+| crowd_density     | CSRNet-based density estimate, robust signal for free/moderate/congested |
 | brightness        | Related to day/night conditions                                          |
 | sharpness         | Indicates blur/noise in the image affecting detection quality            |
 | edge_density      | Texture density — correlates with object/vehicle density                 |
@@ -185,10 +178,8 @@ http://127.0.0.1:5000/
 | zone_bottom       | Vehicles closest to the camera — strong congestion indicator             |
 | bottom_motor      | Motorcycles in the bottom zone — early sign of traffic jam               |
 | mid_car           | Cars in the mid-zone — relates to slowing traffic                        |
-| cluster_density   | Bounding-box density — captures clustering of vehicles                   |
 | is_night          | Night flag used for adaptive feature adjustment                          |
 | is_rain           | Rain flag (edge + brightness) impacting visibility and flow              |
-| crowd_density     | CSRNet-based density estimate, robust signal for free/moderate/congested |
 
 ---
 

@@ -1,7 +1,7 @@
-/node_modules
 /.idea
 /.venv
 /.venv39
 /dataset_cleaned
 /dataset_raw/**
-/dataset_split
+/node_modules
+/yolov8s.pt

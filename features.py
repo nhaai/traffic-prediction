@@ -18,16 +18,6 @@ yolo = YOLO("yolov8s.pt")
 # =======================================
 # NIGHT DETECTION
 # =======================================
-def is_night(gray):
-    timestamp = extract_timestamp(CURRENT_FILENAME)
-    if timestamp:
-        return is_night_by_time(timestamp)
-
-    brightness = np.mean(gray)
-    bright_pixels = np.sum(gray > 220)
-    ratio_bright = bright_pixels / gray.size
-    return (brightness < 110) or (ratio_bright > 0.006)
-
 def is_night_by_time(timestamp):
     # timestamp format: YYYYMMDD_HHMMSS
     if timestamp is None or len(timestamp) < 15:
@@ -53,8 +43,19 @@ def is_night_by_time(timestamp):
     if start < end:
         return start <= cur_minutes < end
 
-    # overnight range (e.g. 18:00 → 06:00)
+    # overnight range (18:00 → 06:00)
     return (cur_minutes >= start) or (cur_minutes < end)
+
+def is_night(gray):
+    if CURRENT_FILENAME:
+        timestamp = extract_timestamp(CURRENT_FILENAME)
+        if timestamp:
+            return is_night_by_time(timestamp)
+
+    brightness = np.mean(gray)
+    bright_pixels = np.sum(gray > 220)
+    ratio_bright = bright_pixels / gray.size
+    return (brightness < 110) or (ratio_bright > 0.006)
 
 def night_adjust(feats):
     # mark night
@@ -84,7 +85,6 @@ def night_adjust(feats):
     feats["motorcycle"] = int(feats["motorcycle"] * boost)
     feats["bus"] = int(feats["bus"] * boost)
     feats["truck"] = int(feats["truck"] * boost)
-
     feats["total"] = feats["car"] + feats["motorcycle"] + feats["bus"] + feats["truck"]
 
     # bbox-area adjustments to compensate for darker images
@@ -95,90 +95,19 @@ def night_adjust(feats):
     return feats
 
 # =======================================
-# COMPUTE ZONAL FEATURES
-# =======================================
-def compute_zones(h, boxes, cam_id):
-    cam_zones = CAM_CFG[cam_id]["zones"]
-    ztop = cam_zones["top"]
-    zmid = cam_zones["mid"]
-    zbot = cam_zones["bottom"]
-
-    def in_zone(box, ratio_min, ratio_max):
-        _, y1, _, y2 = box
-        cy = (y1 + y2) / 2.0
-        return (cy / h >= ratio_min) and (cy / h < ratio_max)
-
-    zone_counts = {"top": 0, "mid": 0, "bottom": 0}
-    for box in boxes:
-        if in_zone(box, ztop[0], ztop[1]):
-            zone_counts["top"] += 1
-        elif in_zone(box, zmid[0], zmid[1]):
-            zone_counts["mid"] += 1
-        elif in_zone(box, zbot[0], zbot[1]):
-            zone_counts["bottom"] += 1
-
-    return zone_counts
-
-# =======================================
 # RAIN DETECTION
 # =======================================
-def detect_rain(gray):
+def is_rain(gray):
     edges = cv2.Canny(gray, 80, 160)
     edge_density = np.sum(edges > 0) / gray.size
+    edge_density = float(np.clip(edge_density, 0.0, 0.4))
     brightness = np.mean(gray)
-
-    # simple rule remains, but works better with improved night detection
     if edge_density > 0.32 and brightness < 120:
         return 1
     return 0
 
 # =======================================
 # VEHICLES DETECTION
-# =======================================
-def detect_objects(img, night=False):
-    # confidence threshold (night → allow lower confidence)
-    if night:
-        conf_car = 0.10    # lowered for night scenes
-        conf_motor = 0.04  # critical for motorcycles
-    else:
-        conf_car = 0.13
-        conf_motor = 0.04  # matching crowded-scene tuning
-
-    # using very low YOLO base conf → detect as many boxes as possible
-    # higher iou suppresses fewer true positives in dense crowds
-    results = yolo(img, conf=0.02, iou=0.40, verbose=False)[0]
-
-    vehicle_classes = {1: "motorcycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
-    objs = []
-
-    for box in results.boxes:
-        cls = int(box.cls)
-        if cls not in vehicle_classes:
-            continue
-
-        label = vehicle_classes[cls]
-        conf = float(box.conf)
-
-        # confidence filtering but kept intentionally loose for motorcycles
-        if label == "motorcycle" and conf < conf_motor:
-            continue
-        if label == "car" and conf < conf_car:
-            continue
-
-        x1, y1, x2, y2 = map(int, box.xyxy[0])
-        if x2 <= x1 or y2 <= y1:
-            continue
-
-        objs.append({"label": label, "conf": conf, "bbox": (x1, y1, x2, y2)})
-
-    # sort by confidence before NMS-like suppression
-    objs = sorted(objs, key=lambda o: o["conf"], reverse=True)
-
-    # lower-threshold duplicate suppression → keep more boxes in dense scenes
-    return suppress_duplicates(objs, iou_thres=0.30)
-
-# =======================================
-# NMS SECONDARY
 # =======================================
 def suppress_duplicates(objs, iou_thres=0.6):
     out = []
@@ -210,6 +139,73 @@ def IOU(a, b):
 
     return inter_area / float(a_area + b_area - inter_area)
 
+def detect_objects(img, night=False):
+    # confidence threshold (night → allow lower confidence)
+    if night:
+        conf_car = 0.10    # lowered for night scenes
+        conf_motor = 0.04  # critical for motorcycles
+    else:
+        conf_car = 0.13
+        conf_motor = 0.04  # matching crowded-scene tuning
+
+    # detect as many boxes as possible, higher iou suppresses fewer true positives in dense crowds
+    results = yolo(img, conf=0.02, iou=0.40, verbose=False)[0]
+    vehicle_classes = {1: "motorcycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+    objs = []
+
+    for box in results.boxes:
+        cls = int(box.cls)
+        if cls not in vehicle_classes:
+            continue
+
+        label = vehicle_classes[cls]
+        conf = float(box.conf)
+
+        # confidence filtering but kept intentionally loose for motorcycles
+        if label == "motorcycle" and conf < conf_motor:
+            continue
+        if label == "car" and conf < conf_car:
+            continue
+
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
+        if x2 <= x1 or y2 <= y1:
+            continue
+
+        objs.append({"label": label, "conf": conf, "bbox": (x1, y1, x2, y2)})
+
+    # sort by confidence before NMS-like suppression
+    objs = sorted(objs, key=lambda o: o["conf"], reverse=True)
+
+    # lower-threshold duplicate suppression → keep more boxes in dense scenes
+    return suppress_duplicates(objs, iou_thres=0.30)
+
+# =======================================
+# COMPUTE ZONAL FEATURES
+# =======================================
+def compute_zones(h, boxes, cam_id):
+    if cam_id not in CAM_CFG:
+        cam_id = "default"
+    cam_zones = CAM_CFG[cam_id]["zones"]
+    ztop = cam_zones["top"]
+    zmid = cam_zones["mid"]
+    zbot = cam_zones["bottom"]
+
+    def in_zone(box, ratio_min, ratio_max):
+        _, y1, _, y2 = box
+        cy = (y1 + y2) / 2.0
+        return (cy / h >= ratio_min) and (cy / h < ratio_max)
+
+    zone_counts = {"top": 0, "mid": 0, "bottom": 0}
+    for box in boxes:
+        if in_zone(box, ztop[0], ztop[1]):
+            zone_counts["top"] += 1
+        elif in_zone(box, zmid[0], zmid[1]):
+            zone_counts["mid"] += 1
+        elif in_zone(box, zbot[0], zbot[1]):
+            zone_counts["bottom"] += 1
+
+    return zone_counts
+
 # =======================================
 # FEATURES DETECTION
 # =======================================
@@ -219,17 +215,18 @@ def extract_features(img, cam_id):
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     night = is_night(gray)
-    rain = detect_rain(gray)
+    rain = is_rain(gray)
     objs = detect_objects(img, night)
 
     counts = {"car": 0, "motorcycle": 0, "bus": 0, "truck": 0}
     bbox_areas = []
     box_list = []
 
+    if cam_id not in CAM_CFG:
+        cam_id = "default"
     cam_zones = CAM_CFG[cam_id]["zones"]
     zmid = cam_zones["mid"]
     zbot = cam_zones["bottom"]
-
     bottom_motor = 0
     mid_car = 0
 
@@ -245,24 +242,21 @@ def extract_features(img, cam_id):
         bbox_areas.append(bbox_area)
         box_list.append((x1, y1, x2, y2))
 
-        # bottom zone
         y_bottom = y2 / h
         if zbot[0] <= y_bottom < zbot[1] and lbl == "motorcycle":
             bottom_motor += 1
-
-        # mid zone
         if zmid[0] <= y_bottom < zmid[1] and lbl == "car":
             mid_car += 1
 
     # total vehicles
     total = sum(counts.values())
 
-    # grayscale image
+    # grayscale
     sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     edges = cv2.Canny(gray, 70, 140)
-    edge_density = float(np.sum(edges > 0) / area)
+    edge_density = float(np.clip(np.sum(edges > 0) / area, 0.0, 0.4))
 
-    # bbox statistics
+    # bbox stats
     if bbox_areas:
         bbox_area_ratio = sum(bbox_areas) / area
         mean_bbox_area = float(np.mean(bbox_areas))
@@ -273,41 +267,44 @@ def extract_features(img, cam_id):
     # zone-based counts
     zone_counts = compute_zones(h, box_list, cam_id)
 
-    # crowd counting density
+    # crowd counting
     try:
         crowd_density = estimate_density(img)
-        crowd_density = float(crowd_density)
-    except (OSError, RuntimeError) as e:
+        crowd_density = float(min(crowd_density, 50.0))
+    except (OSError, RuntimeError):
         crowd_density = 0.0
 
     feats = {
+        # vehicle counting
         "car": counts["car"],
         "motorcycle": counts["motorcycle"],
         "bus": counts["bus"],
         "truck": counts["truck"],
         "total": total,
-
+        # area / density
         "bbox_area_ratio": bbox_area_ratio,
         "mean_bbox_area": mean_bbox_area,
         "max_bbox_area": max_bbox_area,
+        "cluster_density": ( # area per vehicle
+            bbox_area_ratio / total if total > 0 else 0.0
+        ),
+        "crowd_density": crowd_density,
+        # image quality
         "brightness": float(np.mean(gray)),
         "sharpness": sharpness,
         "edge_density": edge_density,
-
+        # zone-based
         "zone_top": zone_counts["top"],
         "zone_mid": zone_counts["mid"],
         "zone_bottom": zone_counts["bottom"],
-
         "bottom_motor": bottom_motor,
         "mid_car": mid_car,
-        "cluster_density": bbox_area_ratio,
-        "crowd_density": crowd_density,
-
+        # misc
         "is_night": int(night),
         "is_rain": int(rain)
     }
 
-    # night-mode correction
+    # nighttime adjustment is applied after raw feature extraction as a post-processing step, not during detection
     if night:
         night_adjust(feats)
 

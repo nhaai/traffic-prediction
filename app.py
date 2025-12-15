@@ -39,7 +39,7 @@ def predict(path):
     if cam_id is None:
         cam_id = "default"
 
-    # extract full feature set via official pipeline
+    # extract features
     features.CURRENT_FILENAME = path
     feats = extract_features(img, cam_id)
 
