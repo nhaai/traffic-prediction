@@ -4,4 +4,3 @@
 /dataset_cleaned
 /dataset_raw/**
 /node_modules
-/yolov8s.pt
