@@ -7,7 +7,7 @@ This project provides tools for:
 3. **Extracting features**
 4. **Labeling images**
 5. **Splitting data into train/val/test**
-6. **Training a decision tree model**
+6. **Training a model**
 
 ---
 
@@ -37,34 +37,39 @@ pip install -r requirements.txt
 ```bash
 project/
 │
-├── dataset_raw/             # Raw input images captured from traffic cameras
-├── dataset_cleaned/         # Cleaned + resized images
+├── dataset_raw/                 # Raw input images captured from traffic cameras
+├── dataset_cleaned/             # Cleaned + resized images
 │
-│── camera_config.json       # Defines camera zones, ROI, and geometry parameters
-├── features.py              # Feature extraction module
-├── crowd_counter/
-│   ├── csrnet.py            # CSRNet wrapper for crowd_density feature
-│   └── model.pth            # Pretrained CSRNet weights (ShanghaiTech Part A)
-│                            # https://drive.google.com/file/d/1Z-atzS5Y2pOd-nEWqZRVBDMYJDreGWHH/view
+├── pipeline_a/
+│   ├── build_dataset.py         # Cleaning, resizing, feature extraction
+│   ├── camera_config.json       # Defines camera zones, ROI, and geometry parameters
+│   ├── extract_features.py      # Feature extraction module
+│   ├── train_model.py           # Train (decision tree) model
+│   ├── export_decision_tree.py  # Export decision tree
+│   ├── export_reports.py        # Generate evaluation reports
+│   └── crowd_counter/
+│       ├── csrnet.py            # CSRNet wrapper for crowd_density feature
+│       └── model.pth            # Pretrained CSRNet weights (ShanghaiTech Part A)
+│                                # https://drive.google.com/file/d/1Z-atzS5Y2pOd-nEWqZRVBDMYJDreGWHH/view
 │
-├── prepare_dataset.py       # Cleaning, resizing, feature extraction
-├── train_model.py           # Train decision tree model
-├── ml_utils.py              # Utility functions
-├── export_decision_tree.py  # Export decision tree
-├── export_reports.py        # Generate evaluation reports
+├── pipeline_b/
+│   ├── build_deep_dataset.py    # Extract 128-d deep features from images using MobileNet
+│   ├── export_deep_reports.py   # Build feature-level CSV dataset from extracted deep features
+│   ├── train_deep_models.py     # Train and compare classical ML models on deep features
+│   └── extract_deep_features.py # Evaluate models and export comparison reports
 │
-├── capture_cam.js           # JavaScript script for capturing frames from traffic cameras
-├── app.py                   # Flask + Tailwind demo UI
+├── capture_cam.js               # JavaScript script for capturing frames from traffic cameras
+├── ml_utils.py                  # Utility functions
+├── app.py                       # Flask + Tailwind demo UI
 ├── static/
 │   └── uploads/
 ├── templates/
 │   └── index.html
 |
-├── requirements.txt         # Python dependencies (pip)
-├── Dockerfile
+├── requirements.txt             # Python dependencies (pip)
+├── package.json                 # JS dependencies (npm)
 └── README.md
 ```
-prepare_dataset.py → dataset_features.csv → train_model.py → ml_utils.split_dataset
 
 ---
 
@@ -99,10 +104,10 @@ node capture_cam.js --cam_id cam11 \
 
 ## 🧹 3. Dataset Processing
 
-Run:
+Run Pipeline A:
 
 ```bash
-python3 prepare_dataset.py
+python3 pipeline_a/build_dataset.py
 ```
 
 This performs:
@@ -122,14 +127,31 @@ the script also computes a `crowd_density` feature using CSRNet
 (crowd counting). If the model is missing, `crowd_density` is set to 0
 and the rest of the pipeline still works.
 
+Run Pipeline B:
+
+```bash
+python3 pipeline_b/build_deep_dataset.py
+```
+
+This processes cleaned traffic images
+and uses a pretrained MobileNet model to extract fixed-length deep feature vectors (e.g., 128 dimensions).
+Each image is converted into a feature representation and saved, together with its label, into a CSV file.
+The resulting dataset is used as input for training and comparing classical machine-learning models in pipeline B.
+
+Outputs stored in:
+
+```
+dataset_deep_features.csv
+```
+
 ---
 
 ## 🤖 4. Training model
 
-Run:
+Run Pipeline A:
 
 ```bash
-python3 train_model.py
+python3 pipeline_a/train_model.py
 ```
 
 Saves model to:
@@ -145,7 +167,7 @@ model.pkl
 Run:
 
 ```bash
-python3 app.py
+python3 pipeline_a.py
 ```
 
 Open browser:
@@ -156,7 +178,7 @@ http://127.0.0.1:5000/
 
 ---
 
-## 📊 6. Feature Set Used
+## 📊 6. Feature Set Used in Pipeline A
 
 | Feature           | Role                                                                     |
 |-------------------|--------------------------------------------------------------------------|

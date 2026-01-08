@@ -1,73 +1,133 @@
 import os
+import sys
 import cv2
 import numpy as np
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, url_for
 import joblib
 from werkzeug.utils import secure_filename
 
-import features
-from features import extract_features, extract_cam_id
+# =======================================
+# CONFIG
+# =======================================
+BASE_PATH = os.path.abspath(os.path.dirname(__file__))
+MODELS_PATH = os.path.join(BASE_PATH, "models")
 
-UPLOAD_DIR = "static/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+UPLOAD_PATH = os.path.join(BASE_PATH, "static", "uploads")
+os.makedirs(UPLOAD_PATH, exist_ok=True)
 
-app = Flask(__name__)
-app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
+PIPELINE_A_PATH = os.path.join(BASE_PATH, "pipeline_a")
+if PIPELINE_A_PATH not in sys.path:
+    sys.path.insert(0, PIPELINE_A_PATH)
 
-# ===================================================
-# LOAD MODEL + METADATA
-# ===================================================
-data = joblib.load("model.pkl")
-model = data["model"]
-label_encoder = data["label_encoder"]
-scaler = data["scaler"]
-feature_cols = data["feature_cols"]
+PIPELINE_B_PATH = os.path.join(BASE_PATH, "pipeline_b")
+if PIPELINE_B_PATH not in sys.path:
+    sys.path.insert(0, PIPELINE_B_PATH)
 
-print("[INFO] Model loaded.")
-print("[INFO] Required features:", feature_cols)
+import extract_features
+from extract_features import extract_features, extract_cam_id, is_non_traffic
+from extract_deep_features import extract_deep_features
 
-# ===================================================
+# =======================================
+# AVAILABLE MODELS
+# =======================================
+MODEL_REGISTRY = {
+    "hc":  {"file": "hc.pkl",  "label": "Handcrafted Feature", "pipeline": "A"},
+    "rf":  {"file": "rf.pkl",  "label": "Random Forest", "pipeline": "B"},
+    "gb":  {"file": "gb.pkl",  "label": "Gradient Boosting", "pipeline": "B"},
+    "ada": {"file": "ada.pkl", "label": "AdaBoost", "pipeline": "B"},
+    "xgb": {"file": "xgb.pkl", "label": "XGBoost", "pipeline": "B"},
+    "svm": {"file": "svm.pkl", "label": "SVM", "pipeline": "B"},
+}
+
+# =======================================
+# LOAD ALL MODELS
+# =======================================
+MODELS = {}
+
+for key, cfg in MODEL_REGISTRY.items():
+    model_path = os.path.join(MODELS_PATH, cfg["file"])
+    if not os.path.exists(model_path):
+        continue
+
+    data = joblib.load(model_path)
+    MODELS[key] = {
+        "model": data["model"],
+        "label_encoder": data["label_encoder"],
+        "scaler": data["scaler"],
+        "feature_cols": data["feature_cols"],
+        "label": cfg["label"],
+        "pipeline": cfg["pipeline"]
+    }
+
+print("[INFO] Loaded models:", list(MODELS.keys()))
+
+# =======================================
+# FLASK APP
+# =======================================
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_PATH, "templates"),
+    static_folder=os.path.join(BASE_PATH, "static")
+)
+app.config["UPLOAD_FOLDER"] = UPLOAD_PATH
+
+# =======================================
 # PREDICT FUNCTION
-# ===================================================
-def predict(path):
-    img = cv2.imread(path)
+# =======================================
+def predict(path, model_key):
+    if model_key not in MODELS:
+        raise ValueError("Invalid model selected")
 
+    entry = MODELS[model_key]
+    model = entry["model"]
+    scaler = entry["scaler"]
+    feature_cols = entry["feature_cols"]
+    label_encoder = entry["label_encoder"]
+    pipeline = entry["pipeline"]
+
+    img = cv2.imread(path)
     if img is None:
         raise ValueError(f"Could not read image: {path}")
 
-    cam_id = extract_cam_id(path)
-    if cam_id is None:
-        cam_id = "default"
+    if pipeline == "A":
+        # extract features
+        cam_id = extract_cam_id(path) or "default"
+        extract_features.CURRENT_FILENAME = path
+        feats = extract_features(img, cam_id)
 
-    # extract features
-    features.CURRENT_FILENAME = path
-    feats = extract_features(img, cam_id)
+        if is_non_traffic(feats):
+            raise ValueError("Image does not appear to contain traffic")
 
-    if features.is_non_traffic(feats):
-        raise ValueError("Image does not appear to contain traffic.")
+        # prepare X in correct order
+        X = np.array([feats[col] for col in feature_cols]).reshape(1, -1)
+    else:
+        deep_feat = extract_deep_features(path)
+        X = deep_feat.reshape(1, -1)
+        feats = None
 
-    # prepare X in correct order
-    X = np.array([feats[col] for col in feature_cols]).reshape(1, -1)
     X_scaled = scaler.transform(X)
-
     pred = model.predict(X_scaled)
     label = label_encoder.inverse_transform(pred)[0]
 
-    return label, feats
+    confidence = None
+    if hasattr(model, "predict_proba"):
+        prob = model.predict_proba(X_scaled)
+        confidence = float(np.max(prob))
 
-def resize_safe(img, max_size=1280):
-    h, w = img.shape[:2]
-    if max(h, w) > max_size:
-        scale = max_size / max(h, w)
-        return cv2.resize(img, (int(w * scale), int(h * scale)))
-    return img
+    return {
+        "label": label,
+        "features": feats,
+        "pipeline": pipeline,
+        "confidence": confidence
+    }
 
-# ===================================================
+# =======================================
 # ROUTES
-# ===================================================
+# =======================================
 @app.route("/", methods=["GET", "POST"])
 def index():
     results = []
+    selected_model = request.form.get("model", "hc")
 
     if request.method == "POST":
         files = request.files.getlist("images")
@@ -77,31 +137,31 @@ def index():
                 continue
 
             filename = secure_filename(file.filename)
-            save_path = os.path.join(UPLOAD_DIR, filename)
+            save_path = os.path.join(UPLOAD_PATH, filename)
             file.save(save_path)
 
-            try:
-                label, feats = predict(save_path)
-            except Exception as e:
-                results.append({
-                    "filename": filename,
-                    "path": save_path,
-                    "label": f"ERROR: {e}",
-                    "features": {}
-                })
-                continue
+            rel_path = os.path.relpath(save_path, app.static_folder)
+            public_url = url_for("static", filename=rel_path)
 
+            result = predict(save_path, selected_model)
             results.append({
                 "filename": filename,
-                "path": save_path,
-                "label": label,
-                "features": feats
+                "path": public_url,
+                "label": result["label"],
+                "features": result["features"],
+                "pipeline": result["pipeline"],
+                "confidence": result["confidence"]
             })
 
-    return render_template("index.html", results=results)
+    return render_template(
+        "index.html",
+        results=results,
+        models=MODEL_REGISTRY,
+        selected_model=selected_model
+    )
 
-# ===================================================
+# =======================================
 # MAIN
-# ===================================================
+# =======================================
 if __name__ == "__main__":
     app.run(debug=True)
