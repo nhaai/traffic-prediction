@@ -39,11 +39,13 @@ project/
 │
 ├── dataset_raw/                 # Raw input images captured from traffic cameras
 ├── dataset_cleaned/             # Cleaned + resized images
+├── models/                      # Trained models
 │
 ├── pipeline_a/
 │   ├── build_dataset.py         # Cleaning, resizing, feature extraction
 │   ├── camera_config.json       # Defines camera zones, ROI, and geometry parameters
 │   ├── extract_features.py      # Feature extraction module
+│   ├── ml_utils.py                  # Utility functions
 │   ├── train_model.py           # Train (decision tree) model
 │   ├── export_decision_tree.py  # Export decision tree
 │   ├── export_reports.py        # Generate evaluation reports
@@ -54,18 +56,17 @@ project/
 │
 ├── pipeline_b/
 │   ├── build_deep_dataset.py    # Extract 128-d deep features from images using MobileNet
-│   ├── export_deep_reports.py   # Build feature-level CSV dataset from extracted deep features
-│   ├── train_deep_models.py     # Train and compare classical ML models on deep features
 │   └── extract_deep_features.py # Evaluate models and export comparison reports
+│   ├── train_deep_models.py     # Train and compare classical ML models on deep features
+│   ├── export_deep_reports.py   # Build feature-level CSV dataset from extracted deep features
 │
 ├── capture_cam.js               # JavaScript script for capturing frames from traffic cameras
-├── ml_utils.py                  # Utility functions
 ├── app.py                       # Flask + Tailwind demo UI
 ├── static/
 │   └── uploads/
 ├── templates/
 │   └── index.html
-|
+│
 ├── requirements.txt             # Python dependencies (pip)
 ├── package.json                 # JS dependencies (npm)
 └── README.md
@@ -119,7 +120,7 @@ Outputs stored in:
 
 ```
 dataset_cleaned/
-dataset_features.csv
+pipeline_a/dataset_features.csv
 ```
 
 During feature extraction, if `crowd_counter/model.pth` is available,
@@ -141,7 +142,7 @@ The resulting dataset is used as input for training and comparing classical mach
 Outputs stored in:
 
 ```
-dataset_deep_features.csv
+pipeline_b/dataset_deep_features.csv
 ```
 
 ---
@@ -157,7 +158,23 @@ python3 pipeline_a/train_model.py
 Saves model to:
 
 ```
-model.pkl
+models/hc.pkl
+```
+
+Run Pipeline B:
+
+```bash
+python3 pipeline_b/train_deep_models.py
+```
+
+Saves models to:
+
+```
+models/ada.pkl
+models/gb.pkl
+models/rf.pkl
+models/svm.pkl
+models/xgb.pkl
 ```
 
 ---
@@ -167,7 +184,7 @@ model.pkl
 Run:
 
 ```bash
-python3 pipeline_a.py
+python3 app.py
 ```
 
 Open browser:
