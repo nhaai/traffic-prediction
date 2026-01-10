@@ -127,7 +127,10 @@ def predict(path, model_key):
 @app.route("/", methods=["GET", "POST"])
 def index():
     results = []
-    selected_model = request.form.get("model", "hc")
+
+    selected_models = request.form.getlist("model")
+    if not selected_models:
+        selected_models = ["hc"]
 
     if request.method == "POST":
         files = request.files.getlist("images")
@@ -142,22 +145,29 @@ def index():
 
             rel_path = os.path.relpath(save_path, app.static_folder)
             public_url = url_for("static", filename=rel_path)
+            predictions = []
 
-            result = predict(save_path, selected_model)
+            for model_key in selected_models:
+                r = predict(save_path, model_key)
+                predictions.append({
+                    "model_key": model_key,
+                    "model_label": MODEL_REGISTRY[model_key]["label"],
+                    "pipeline": r["pipeline"],
+                    "label": r["label"],
+                    "confidence": r["confidence"],
+                    "features": r["features"],
+                })
+
             results.append({
                 "filename": filename,
                 "path": public_url,
-                "label": result["label"],
-                "features": result["features"],
-                "pipeline": result["pipeline"],
-                "confidence": result["confidence"]
+                "predictions": predictions
             })
 
     return render_template(
         "index.html",
         results=results,
-        models=MODEL_REGISTRY,
-        selected_model=selected_model
+        models=MODEL_REGISTRY
     )
 
 # =======================================
